@@ -62,12 +62,15 @@ def launch():
     defog_path = os.path.join(home_dir, ".defog")
     if not os.popen("lspci | grep -i nvidia").read():
         # not a GPU machine
-        filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q5_k_m.gguf")
+        filepath = os.path.join(home_dir, ".defog", "llama-3-sqlcoder-8b-Q8_0.gguf")
+        print("当前模型路径")
+        print(filepath)
+
         if not os.path.exists(filepath):
             print(
                 "Downloading the SQLCoder-7b-2 GGUF file. This is a ~5GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
             )
-            hf_hub_download(repo_id="defog/sqlcoder-7b-2", filename="sqlcoder-7b-q5_k_m.gguf", local_dir=defog_path)
+            hf_hub_download(repo_id="defog/llama-3-sqlcoder-8b-Q8_0", filename="llama-3-sqlcoder-8b-Q8_0.gguf", local_dir=defog_path)
     else:
         # check if the huggingface model is already downloaded from hub. If not, download it
         from huggingface_hub import snapshot_download

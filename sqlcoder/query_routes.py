@@ -49,7 +49,7 @@ if device_type == "gpu":
 else:
     from llama_cpp import Llama
     home_dir = os.path.expanduser("~")
-    filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q5_k_m.gguf")
+    filepath = os.path.join(home_dir, ".defog", "llama-3-sqlcoder-8b-Q8_0.gguf")
 
     if not os.path.exists(filepath):
         print(
@@ -57,8 +57,8 @@ else:
         )
 
         # download the gguf file from the internet and save it
-        hf_hub_download(repo_id="defog/sqlcoder-7b-2", filename="sqlcoder-7b-q5_k_m.gguf", local_dir=defog_path)
-    
+        hf_hub_download(repo_id="defog/llama-3-sqlcoder-8b-Q8_0", filename="llama-3-sqlcoder-8b-Q8_0.gguf", local_dir=defog_path)
+
     if device_type == "apple_silicon":
         llm = Llama(model_path=filepath, n_gpu_layers=-1, n_ctx=4096)
     else:
@@ -95,7 +95,7 @@ async def query(request: Request):
 
     with open(os.path.join(defog_path, "metadata.json"), "r") as f:
         metadata = json.load(f)
-    
+
     ddl = convert_metadata_to_ddl(metadata)
 
     prompt = f"""### Task
@@ -113,7 +113,7 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
 [SQL]
 """
     query = generate_function(prompt)
-    
+
     defog = Defog()
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
