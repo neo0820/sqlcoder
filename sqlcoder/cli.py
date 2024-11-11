@@ -32,7 +32,7 @@ def main():
 def serve_webserver():
     from sqlcoder.serve import app
     import uvicorn
-    uvicorn.run(app, host="localhost", port=1235)
+    uvicorn.run(app, host="192.168.56.3", port=1235)
 
 
 def serve_static():
@@ -51,7 +51,7 @@ def serve_static():
                 **kwargs
             )
 
-    webbrowser.open(f"http://localhost:{port}")
+    webbrowser.open(f"http://192.168.56.3:{port}")
     with socketserver.TCPServer(("", port), Handler) as httpd:
         print(f"Static folder is {directory}")
         httpd.extension_maps = {".html": "text/html", "": "text/html"}
@@ -75,10 +75,10 @@ def launch():
             "Downloading the SQLCoder-7b-2 model. This is a ~14GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
         )
         _ = snapshot_download("defog/sqlcoder-7b-2")
-    
+
     print("Starting SQLCoder server...")
     static_process = subprocess.Popen(["sqlcoder", "serve-static"])
-    
+
     print("Serving static server...")
     webserver_process = subprocess.Popen(["sqlcoder", "serve-webserver"])
     print("Press Ctrl+C to exit.")
