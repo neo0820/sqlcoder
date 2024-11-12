@@ -25,7 +25,8 @@ elif sys.platform == "darwin" and os.uname().machine == "arm64":
 else:
     device_type = "cpu"
 
-if device_type == "gpu":
+# if device_type == "gpu":
+if device_type == "cpu":
     import torch
     from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
@@ -48,9 +49,9 @@ if device_type == "gpu":
     )[0]["generated_text"].split(";")[0].split("```")[0].strip() + ";"
 else:
     from llama_cpp import Llama
-    home_dir = os.path.expanduser("~")
-    filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q5_k_m.gguf")
-
+    home_dir = os.path.expanduser("/mnt")
+    # filepath = os.path.join(home_dir, "/workspace/model/", "sqlcoder-7b-q5_k_m.gguf")
+    filepath = "/mnt/workspace/model/sqlcoder-7b-q5_k_m.gguf"
     if not os.path.exists(filepath):
         print(
             "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
@@ -117,11 +118,11 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
     defog = Defog()
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
-    columns, data = execute_query_once(db_type, db_creds, query)
+    # columns, data = execute_query_once(db_type, db_creds, query)
 
     return {
         "query_generated": query,
-        "data": data,
-        "columns": columns,
+        # "data": data,
+        # "columns": columns,
         "ran_successfully": True
     }
