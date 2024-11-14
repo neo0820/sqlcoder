@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request
 import os
 import sys
 import json
+import sqlglot
+
 from defog import Defog
 from defog.query import execute_query_once
 from huggingface_hub import hf_hub_download
@@ -119,11 +121,25 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
     
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
+    query = convert_sql(query,source_db="postgres", target_db=db_type)
+    
     columns, data = execute_query_once(db_type, db_creds, query)
-
+    
     return {
         "query_generated": query,
-        "data": data,
         "columns": columns,
-        "ran_successfully": True
+        "data": data,
+        "ran_successfully": True,
+        "db_type": db_type
     }
+
+
+# 定义一个函数，用于将 SQL 查询从一种数据库类型转换为另一种
+def convert_sql(query: str, source_db: str, target_db: str) -> str:
+    try:
+        # 使用 sqlglot 解析 SQL 语句并转换为目标数据库方言
+        converted_query = sqlglot.transpile(query, read=source_db, write=target_db)[0]
+        return converted_query
+    except Exception as e:
+        print(f"SQL conversion error: {e}")
+        return None
