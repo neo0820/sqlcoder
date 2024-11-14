@@ -30,11 +30,11 @@ if device_type == "gpu":
     from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
     model = AutoModelForCausalLM.from_pretrained(
-        "defog/sqlcoder-7b-2",
+        "defog/llama-3-sqlcoder-8b",
         device_map="auto",
         torch_dtype=torch.float16
     )
-    tokenizer = AutoTokenizer.from_pretrained("defog/sqlcoder-7b-2")
+    tokenizer = AutoTokenizer.from_pretrained("defog/llama-3-sqlcoder-8b")
     pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
     generate_function = lambda prompt: pipe(
         prompt,
@@ -115,6 +115,8 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
     query = generate_function(prompt)
     
     defog = Defog()
+    print(f"defog.db_type: {defog.db_type}")
+    
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
     columns, data = execute_query_once(db_type, db_creds, query)

@@ -4,6 +4,7 @@ import sqlcoder
 import subprocess
 from huggingface_hub import snapshot_download, hf_hub_download
 
+
 USAGE_STRING = """
 Usage: sqlcoder <command>
 
@@ -31,7 +32,14 @@ def main():
 
 def serve_webserver():
     from sqlcoder.serve import app
+    from pyngrok import ngrok
     import uvicorn
+
+    port = 1235
+    # 创建 ngrok 隧道
+    ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
+    public_url = ngrok.connect(port)
+    print(f"Ngrok Tunnel URL: {public_url}")
     uvicorn.run(app, host="localhost", port=1235)
 
 
@@ -72,9 +80,9 @@ def launch():
         # check if the huggingface model is already downloaded from hub. If not, download it
         from huggingface_hub import snapshot_download
         print(
-            "Downloading the SQLCoder-7b-2 model. This is a ~14GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
+            "Downloading the llama-3-sqlcoder-8b model. This is a ~14GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
         )
-        _ = snapshot_download("defog/sqlcoder-7b-2")
+        _ = snapshot_download("defog/llama-3-sqlcoder-8b")
     
     print("Starting SQLCoder server...")
     static_process = subprocess.Popen(["sqlcoder", "serve-static"])
