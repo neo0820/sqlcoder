@@ -2,6 +2,8 @@ from fastapi import APIRouter, Request
 import json
 import os
 from defog import Defog
+from sqlcoder.kpaas_generate_schema  import KpaasGenerateSchema
+
 
 DEFOG_API_KEY = "NULL_VALUE" # placeholder, doesn't matter for any of the function here
 
@@ -21,6 +23,8 @@ def convert_nested_dict_to_list(table_metadata):
             metadata.append(item)
     return metadata
 
+
+    
 @router.post("/integration/get_tables_db_creds")
 async def get_tables_db_creds(request: Request):
     try:
@@ -60,6 +64,19 @@ async def get_metadata(request: Request):
         return {"metadata": metadata}
     except:
         return {"error": "no metadata found"}
+    
+@router.post("/integration/get_metadata_json")
+async def get_metadata(request: Request):
+    try:
+        with open(os.path.join(defog_path, "metadata.json"), "r") as f:
+            table_metadata = json.load(f)
+        
+        # metadata = convert_nested_dict_to_list(table_metadata)
+        metadata = table_metadata;
+        return {"metadata": metadata}
+    except:
+        return {"error": "no metadata found"}
+    
 
 @router.post("/integration/generate_tables")
 async def generate_tables(request: Request):
@@ -86,11 +103,15 @@ async def generate_metadata(request: Request):
     with open(os.path.join(defog_path, "selected_tables.json"), "w") as f:
         json.dump(tables, f)
 
-    defog = Defog()
-    metadata = defog.generate_db_schema(
+    # defog = Defog()
+    # metadata = defog.generate_db_schema(
+    #     tables=tables, upload=False
+    # )
+    kpaas = KpaasGenerateSchema()
+    metadata = kpaas.generate_mysql_schema(
         tables=tables, upload=False
     )
-    
+    print(f"执行了generate_mysql_schema_dev")
     with open(os.path.join(defog_path, "metadata.json"), "w") as f:
         json.dump(metadata, f)
     
@@ -120,3 +141,4 @@ async def update_metadata(request: Request):
         json.dump(table_metadata, f)
     
     return {"status": "success"}
+

@@ -126,6 +126,8 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
     columns, data = execute_query_once(db_type, db_creds, query)
     
     return {
+        "ddl": ddl,
+        "prompt": prompt,
         "query_generated": query,
         "columns": columns,
         "data": data,
