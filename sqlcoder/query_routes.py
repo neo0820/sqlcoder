@@ -80,9 +80,11 @@ def convert_metadata_to_ddl(metadata):
     master_ddl = ""
     for table_name, columns in metadata.items():
         ddl = f"CREATE TABLE {table_name} (\n"
+        table_description=""
         for column in columns:
-            ddl += f"    {column['column_name']} {column['data_type']},\n"
-        ddl = ddl[:-2] + "\n);"
+            ddl += f"    {column['column_name']} {column['data_type']} COMMENT '{column['column_description']}',\n"
+            table_description = column['table_description']
+        ddl = ddl[:-2] + f"\n) COMMENT='{table_description}';"
         master_ddl += ddl + "\n\n"
     return master_ddl
 
@@ -94,6 +96,8 @@ async def get_device_type():
 async def query(request: Request):
     body = await request.json()
     question = body.get("question")
+    
+    torch.cuda.empty_cache()
 
     with open(os.path.join(defog_path, "metadata.json"), "r") as f:
         metadata = json.load(f)
