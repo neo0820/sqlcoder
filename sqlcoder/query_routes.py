@@ -3,15 +3,62 @@ import os
 import sys
 import json
 import sqlglot
+import numpy as np
 
 from defog import Defog
 from defog.query import execute_query_once
 from huggingface_hub import hf_hub_download
 
+from sentence_transformers import SentenceTransformer
+from sqlcoder.faiss_manager import FaissManager
+
+
+def detect_device_type():
+    """
+    检测设备类型，返回 'gpu', 'cpu', 或 'apple_silicon'。
+    """
+    import os
+    import sys
+
+    if os.popen("lspci | grep -i nvidia").read():
+        return "gpu"
+    elif sys.platform == "darwin" and os.uname().machine == "arm64":
+        return "apple_silicon"
+    else:
+        return "cpu"
+
+def load_ddl_vector_model(device_type):
+    """
+    根据设备类型加载适合的DDL向量化模型。
+    """
+    if device_type == "gpu":
+        print("加载GPU优化的DDL模型 paraphrase-mpnet-base-v2...")
+        return SentenceTransformer('paraphrase-mpnet-base-v2', device='cuda')
+    elif device_type == "apple_silicon":
+        print("加载适用于 Apple Silicon 的DDL模型 paraphrase-MiniLM-L6-v2...")
+        return SentenceTransformer('paraphrase-MiniLM-L6-v2', device='cpu')
+    else:
+        print("加载轻量化的DDL模型 paraphrase-MiniLM-L6-v2 (CPU 模式)...")
+        return SentenceTransformer('paraphrase-MiniLM-L6-v2', device='cpu')
+
+# 检测设备类型
+device_type = detect_device_type()
+
+# 加载DDL向量化模型
+ddl_vector_model = load_ddl_vector_model(device_type)
+
+# 测试模型加载和向量化
+ddl_text = "表名: base_dictionarydata, 列名: F_Id, 数据类型: varchar, 列描述: , 表描述: 字典数据"
+vector = ddl_vector_model.encode(ddl_text)
+print("DDL向量化结果:", vector)
+
 router = APIRouter()
 
 device_type = None
 generate_function = None
+ddl_vector_model = None  # 量化模型实例
+
+index_path = "../index" #向量索引路径
 
 DEFOG_API_KEY = "NULL_VALUE" # placeholder, doesn't matter for any of the function here
 
@@ -20,60 +67,103 @@ defog_path = os.path.join(home_dir, ".defog")
 
 # stuff that we need to do only once, before everything is loaded
 
-if os.popen("lspci | grep -i nvidia").read():
-    device_type = "gpu"
-elif sys.platform == "darwin" and os.uname().machine == "arm64":
-    device_type = "apple_silicon"
-else:
-    device_type = "cpu"
-
-if device_type == "gpu":
-    import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-
-    model = AutoModelForCausalLM.from_pretrained(
-        "defog/llama-3-sqlcoder-8b",
-        device_map="auto",
-        torch_dtype=torch.float16
-    )
-    tokenizer = AutoTokenizer.from_pretrained("defog/llama-3-sqlcoder-8b")
-    pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
-    generate_function = lambda prompt: pipe(
-        prompt,
-        max_new_tokens=512,
-        do_sample=False,
-        num_beams=3,
-        num_return_sequences=1,
-        return_full_text=False,
-        eos_token_id=tokenizer.eos_token_id,
-        pad_token_id=tokenizer.eos_token_id,
-    )[0]["generated_text"].split(";")[0].split("```")[0].strip() + ";"
-else:
-    from llama_cpp import Llama
-    home_dir = os.path.expanduser("~")
-    filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q5_k_m.gguf")
-
-    if not os.path.exists(filepath):
-        print(
-            "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
-        )
-
-        # download the gguf file from the internet and save it
-        hf_hub_download(repo_id="defog/sqlcoder-7b-2", filename="sqlcoder-7b-q5_k_m.gguf", local_dir=defog_path)
-    
-    if device_type == "apple_silicon":
-        llm = Llama(model_path=filepath, n_gpu_layers=-1, n_ctx=4096)
+# 检测设备类型
+def detect_device_type():
+    if os.popen("lspci | grep -i nvidia").read():
+        return "gpu"
+    elif sys.platform == "darwin" and os.uname().machine == "arm64":
+        return "apple_silicon"
     else:
-        llm = Llama(model_path=filepath, n_ctx=4096)
+        return "cpu"
 
-    generate_function = lambda prompt: llm(
-        prompt,
-        max_tokens=512,
-        temperature=0,
-        top_p=1,
-        echo=False,
-        repeat_penalty=1.0
-    )["choices"][0]["text"].split(";")[0].split("```")[0].strip() + ";"
+device_type = detect_device_type()
+
+
+# 加载SQL生成模型
+def load_sql_model():
+    if device_type == "gpu":
+        import torch
+        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+
+        model = AutoModelForCausalLM.from_pretrained(
+            "defog/llama-3-sqlcoder-8b",
+            device_map="auto",
+            torch_dtype=torch.float16
+        )
+        tokenizer = AutoTokenizer.from_pretrained("defog/llama-3-sqlcoder-8b")
+        pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
+        return lambda prompt: pipe(
+            prompt,
+            max_new_tokens=512,
+            do_sample=False,
+            num_beams=3,
+            num_return_sequences=1,
+            return_full_text=False,
+            eos_token_id=tokenizer.eos_token_id,
+            pad_token_id=tokenizer.eos_token_id,
+        )[0]["generated_text"].split(";")[0].split("```")[0].strip() + ";"
+    else:
+        from llama_cpp import Llama
+
+        filepath = os.path.join(defog_path, "sqlcoder-7b-q5_k_m.gguf")
+
+        if not os.path.exists(filepath):
+            print(
+                "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
+            )
+
+            # 下载 GGUF 文件
+            hf_hub_download(repo_id="defog/sqlcoder-7b-2", filename="sqlcoder-7b-q5_k_m.gguf", local_dir=defog_path)
+
+        if device_type == "apple_silicon":
+            llm = Llama(model_path=filepath, n_gpu_layers=-1, n_ctx=4096)
+        else:
+            llm = Llama(model_path=filepath, n_ctx=4096)
+
+        return lambda prompt: llm(
+            prompt,
+            max_tokens=512,
+            temperature=0,
+            top_p=1,
+            echo=False,
+            repeat_penalty=1.0
+        )["choices"][0]["text"].split(";")[0].split("```")[0].strip() + ";"
+
+generate_function = load_sql_model()
+
+
+# 加载量化DDL描述模型
+def load_ddl_vector_model(device_type):
+    """
+    根据设备类型加载适合的DDL向量化模型。
+    :param device_type: 设备类型 ('gpu', 'cpu', 'apple_silicon')。
+    :return: 加载的模型实例。
+    """
+    if device_type == "gpu":
+        print("加载GPU优化的DDL模型 paraphrase-mpnet-base-v2...")
+        return SentenceTransformer('paraphrase-mpnet-base-v2', device='cuda')  # 更强大但资源需求更高的模型
+    elif device_type == "apple_silicon":
+        print("加载适用于 Apple Silicon 的DDL模型 paraphrase-MiniLM-L6-v2...")
+        return SentenceTransformer('paraphrase-MiniLM-L6-v2', device='cpu')  # Apple Silicon 优化
+    else:
+        print("加载轻量化的DDL模型 paraphrase-MiniLM-L6-v2 (CPU 模式)...")
+        return SentenceTransformer('paraphrase-MiniLM-L6-v2', device='cpu')  # 轻量化模型
+
+ddl_vector_model = load_ddl_vector_model(device_type)
+
+
+# 提供DDL向量化功能
+def vectorize_ddl(ddl_text: str):
+    """
+    将DDL描述文本向量化。
+    :param ddl_text: DDL描述字符串。
+    :return: 向量化结果 (numpy.ndarray)。
+    """
+    if not ddl_vector_model:
+        raise ValueError("DDL向量化模型未加载！")
+    return ddl_vector_model.encode(ddl_text)
+
+
 
 def convert_metadata_to_ddl(metadata):
     # metadata is a dictionary of a table
@@ -87,6 +177,60 @@ def convert_metadata_to_ddl(metadata):
         ddl = ddl[:-2] + f"\n) COMMENT='{table_description}';"
         master_ddl += ddl + "\n\n"
     return master_ddl
+
+#向量化文本
+@router.post("/vectorize_ddl_test")
+async def vectorize_ddl_test(request: Request):
+    params = await request.json()
+    ddl_text = params.get("ddl_text")
+    print(f"正在向量化文本: {ddl_text}")
+    vector = vectorize_ddl(ddl_text)
+    
+    vector_ids=save_vector(vector) #保存到FAISS后返回的ID
+
+    # 将 NumPy 数组转换为 Python 列表
+    vector_list = vector.tolist()
+
+    vector_ids_list = vector_ids.tolist()
+
+    return {"vector_ids":vector_ids_list,"vector": vector_list }
+
+
+def save_vector(vectors: np.ndarray):
+    defog = Defog()
+    db_creds = defog.db_creds
+    database_name = db_creds['database']  # 数据库名 
+
+    faiss_manager = FaissManager(base_dir=index_path, dim=768)
+
+    # 打印向量维度和类型以进行调试
+    print("Adding vectors with shape:", vectors.shape)
+    print("Data type:", vectors.dtype)
+    
+    print("==============~~~~~~~~~vectors shape:", vectors.shape)
+    # 假设 vectors 是一维数组 
+    print("vectors shape before reshape:", vectors.shape)
+    if len(vectors.shape) == 1:
+        vectors = vectors.reshape(1, -1)  # 转换成二维形状，(1, 768)
+        print("=====是一维数组======")
+    else:
+        print("=====是二维数组======")
+    print("vectors shape after reshape:", vectors.shape)
+
+
+
+    # 确保向量维度正确并转换为 float32 类型
+    if vectors.shape[1] != 768:
+        raise ValueError(f"向量维度不匹配！索引需要 768 维，实际为 {vectors.shape[1]} 维。")
+    
+    vectors = vectors.astype(np.float32)  # 确保是 float32 类型
+
+    vector_ids = faiss_manager.add_vectors(database_name, vectors)
+    print(f"添加向量后返回的ID:")
+    print(vector_ids)
+    return vector_ids
+
+
 
 @router.post("/get_device_type")
 async def get_device_type():
