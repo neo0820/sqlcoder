@@ -3,6 +3,8 @@ import json
 import os
 from defog import Defog
 from sqlcoder.kpaas_generate_schema  import KpaasGenerateSchema
+from sqlcoder.vector_routes import vectorize_ddl_save_ids, save_vector, load_ddl_vector_model, vectorize_ddl, vectorize_delete_index
+
 
 
 
@@ -135,6 +137,40 @@ async def transform_metadata_to_ddl(request: Request):
 
 
 
+@router.post("/integration/transform_metadata_to_vector_mix")
+async def transform_metadata_to_vector_mix(request: Request):
+    # 解析请求参数
+    params = await request.json()
+    tables = params.get("tables")
+
+    # Step 1: 获取 DDL 文本
+    ddl_response = await transform_metadata_to_ddl(request)  # 加上 await 等待异步结果
+    # ddl_result = await ddl_response.json()  # 异步获取返回结果
+    ddl_texts = ddl_response.get("ddl_texts")
+
+    # Step 2: 向量化并获取向量 IDs
+    if not ddl_texts:
+        return {"error": "Failed to generate DDL texts"}
+    
+    vector_result = vectorize_ddl_save_ids(ddl_texts)  # 直接调用核心函数
+    vector_ids = vector_result.get("vector_ids")
+
+    # Step 3: 合并向量 IDs 和 DDL 文本
+    if not vector_ids:
+        return {"error": "Failed to process vectors"}
+
+    mixed_ddl_texts = []
+    for vector_id_list, ddl_text in zip(vector_ids, ddl_texts):
+        if vector_id_list:  # 每个向量可能有多个 ID，这里取第一个
+            vector_id = vector_id_list[0]
+            mixed_ddl_text = f"vector_ids:{vector_id},{ddl_text}"
+            mixed_ddl_texts.append(mixed_ddl_text)
+
+    # 返回合并后的结果
+    return {"ddl_texts": mixed_ddl_texts}
+
+
+
 
 def get_table_to_ddl(tables):
     metadata_json = generate_metadata_json(tables=tables)
@@ -157,6 +193,8 @@ def get_table_to_ddl(tables):
         ddl_text = f"table_name: {table_name}, column_name: {column_name}, data_type: {data_type}, column_description: {column_description}, table_description: {table_description}"
         ddl_texts.append(ddl_text)
 
+    print("========================ddl_texts========================")
+    print({"ddl_texts": ddl_texts})
     # 返回最终的结果
     return {"ddl_texts": ddl_texts}
 

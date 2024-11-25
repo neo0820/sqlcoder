@@ -121,36 +121,9 @@ def save_vector(vectors: np.ndarray):
 @router.post("/vectorize_ddl_test_save")
 async def vectorize_ddl_test_save(request: Request):
     params = await request.json()
-  
      # 获取传入的 ddl_text 数组
     ddl_texts = params.get("ddl_texts")
-    
-    if not ddl_texts:
-        return {"error": "No ddl_texts provided"}
-
-    print(f"正在向量化文本: {ddl_texts}")
-    
-    # 创建空列表存储所有的向量和向量ID
-    all_vectors = []
-    all_vector_ids = []
-    
-    for ddl_text in ddl_texts:
-
-        # 向量化每一个 ddl_text
-        vector = vectorize_ddl(ddl_text)
-        
-        # 保存向量到 FAISS 并获取 ID
-        vector_ids = save_vector(vector)
-        
-        # 将 NumPy 数组转换为 Python 列表
-        vector_list = vector.tolist()
-        vector_ids_list = vector_ids.tolist()
-        
-        # 添加到结果列表
-        all_vectors.append(vector_list)
-        all_vector_ids.append(vector_ids_list)
-
-    return {"vector_ids":all_vector_ids,"vector": all_vectors }
+    return vectorize_ddl_save_ids(ddl_texts)
 
 
 
@@ -183,7 +156,7 @@ async def vectorize_ddl_test_search(request: Request):
     print(f"查询到的最近邻索引ID: {indices}")
     #indices返回的类似于这样的二维数组，[[ 0  1 -1 -1 -1]]
 
-    return {"indices":indices.tolist()[0]}
+    return indices
 
 
 

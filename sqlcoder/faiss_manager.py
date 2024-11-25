@@ -114,7 +114,8 @@ class FaissManager:
         distances, indices = index.search(query_vectors, top_k)
         #indices返回的类似于这样的二维数组，[[ 0  1 -1 -1 -1]]
         # 返回符合条件的索引ID集合
-        return indices
+        value= {"indices":indices.tolist()[0],"distances":distances.tolist()[0]}
+        return value
     def delete_vectors(self, db_name: str, vector_ids: np.ndarray):
         """
         从索引中删除指定的向量。
