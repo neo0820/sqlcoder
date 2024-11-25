@@ -115,3 +115,41 @@ class FaissManager:
         #indices返回的类似于这样的二维数组，[[ 0  1 -1 -1 -1]]
         # 返回符合条件的索引ID集合
         return indices
+    def delete_vectors(self, db_name: str, vector_ids: np.ndarray):
+        """
+        从索引中删除指定的向量。
+        :param db_name: 数据库名。
+        :param vector_ids: 需要删除的向量ID数组。
+        """
+        if db_name not in self.index_map:
+            raise ValueError(f"数据库 {db_name} 的索引未加载，无法删除向量。")
+
+        index = self.index_map[db_name]
+
+        # 判断索引类型，确保支持删除操作
+        if not isinstance(index, faiss.IndexIVF):
+            raise NotImplementedError("当前索引类型不支持删除操作，请使用 IVF 索引。")
+
+        # 删除指定的向量
+        index.remove_ids(faiss.IDSelectorBatch(vector_ids))
+        print(f"从索引 {db_name} 删除了 {len(vector_ids)} 个向量。")
+
+        # 保存索引到磁盘
+        self.save_index(db_name)
+
+        
+    def delete_index(self, db_name: str):
+        """
+        删除指定数据库的索引文件和缓存的索引。
+        :param db_name: 数据库名。
+        """
+        if db_name in self.index_map:
+            del self.index_map[db_name]  # 从内存缓存中移除
+            print(f"已从缓存中移除索引: {db_name}")
+
+        index_path = self._get_index_path(db_name)
+        if os.path.exists(index_path):
+            os.remove(index_path)  # 删除索引文件
+            print(f"索引文件已删除: {index_path}")
+        else:
+            print(f"索引文件不存在，无需删除: {index_path}")
