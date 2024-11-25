@@ -48,7 +48,7 @@ class FaissManager:
             self.load_or_create_index(db_name)
 
         index = self.index_map[db_name]
-        
+
         if vectors.shape[1] != self.dim:
             raise ValueError(f"向量维度不匹配！索引需要 {self.dim} 维，实际为 {vectors.shape[1]} 维。")
 
@@ -56,8 +56,17 @@ class FaissManager:
         index.add(vectors)
         print(f"添加 {vectors.shape[0]} 个向量到索引: {db_name}")
 
+        # 改为手动计算新增的向量ID
+        start_id = index.ntotal - vectors.shape[0]
+        end_id = index.ntotal
+        vector_ids = np.arange(start_id, end_id)
+
+        # 保存索引到磁盘
+        self.save_index(db_name)
+
         # 返回新增的向量的ID
-        return np.arange(index.ntotal - vectors.shape[0], index.ntotal)
+        return vector_ids
+
 
     def save_index(self, db_name: str):
         """
@@ -84,10 +93,25 @@ class FaissManager:
 
         index = self.index_map[db_name]
 
+        # 打印向量维度和类型以进行调试
+        print("Adding vectors with shape:", query_vectors.shape)
+        print("Data type:", query_vectors.dtype)
+        
+        print("==============~~~~~~~~~vectors shape:", query_vectors.shape)
+        # 假设 vectors 是一维数组 
+        print("vectors shape before reshape:", query_vectors.shape)
+        if len(query_vectors.shape) == 1:
+            query_vectors = query_vectors.reshape(1, -1)  # 转换成二维形状，(1, 768)
+            print("=====是一维数组======")
+        else:
+            print("=====是二维数组======")
+        print("vectors shape after reshape:", query_vectors.shape)
+
+
         if query_vectors.shape[1] != self.dim:
             raise ValueError(f"查询向量维度不匹配！索引需要 {self.dim} 维，实际为 {query_vectors.shape[1]} 维。")
 
         distances, indices = index.search(query_vectors, top_k)
-
+        #indices返回的类似于这样的二维数组，[[ 0  1 -1 -1 -1]]
         # 返回符合条件的索引ID集合
         return indices

@@ -118,6 +118,51 @@ async def generate_metadata(request: Request):
     metadata = convert_nested_dict_to_list(metadata)
     return {"metadata": metadata}
 
+async def generate_metadata_json(request: Request):
+    params = await request.json()
+    tables = params.get("tables")
+
+    with open(os.path.join(defog_path, "selected_tables.json"), "w") as f:
+        json.dump(tables, f)
+
+    # defog = Defog()
+    # metadata = defog.generate_db_schema(
+    #     tables=tables, upload=False
+    # )
+    kpaas = KpaasGenerateSchema()
+    metadata = kpaas.generate_mysql_schema(
+        tables=tables, upload=False
+    )
+    print(f"执行了generate_mysql_schema_dev")
+    with open(os.path.join(defog_path, "metadata.json"), "w") as f:
+        json.dump(metadata, f)
+    
+    metadata = convert_nested_dict_to_list(metadata)
+    return {"metadata": metadata}
+
+
+@router.post("/integration/transform_metadata_to_ddl")
+async def transform_metadata_to_ddl(request: Request):
+    metadata_json = generate_metadata_json(request)
+    ddl_texts = []
+
+    # 遍历每一项元数据并构造相应的DDL文本
+    for item in metadata_json.get("metadata", []):
+        # 获取每一列的相关信息
+        table_name = item.get("table_name", "")
+        column_name = item.get("column_name", "")
+        data_type = item.get("data_type", "")
+        column_description = item.get("column_description", "")
+        table_description = item.get("table_description", "")
+
+        # 创建对应的DDL文本格式
+        ddl_text = f"table_name: {table_name}, column_name: {column_name}, data_type: {data_type}, column_description: {column_description}, table_description: {table_description}"
+        ddl_texts.append(ddl_text)
+
+    # 返回最终的结果
+    return {"ddl_texts": ddl_texts}
+
+
 @router.post("/integration/update_metadata")
 async def update_metadata(request: Request):
     params = await request.json()

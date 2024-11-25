@@ -58,7 +58,7 @@ device_type = None
 generate_function = None
 ddl_vector_model = None  # 量化模型实例
 
-index_path = "../index" #向量索引路径
+index_path = "./index" #向量索引路径
 
 DEFOG_API_KEY = "NULL_VALUE" # placeholder, doesn't matter for any of the function here
 
@@ -179,21 +179,69 @@ def convert_metadata_to_ddl(metadata):
     return master_ddl
 
 #向量化文本
-@router.post("/vectorize_ddl_test")
-async def vectorize_ddl_test(request: Request):
+@router.post("/vectorize_ddl_test_save")
+async def vectorize_ddl_test_save(request: Request):
     params = await request.json()
+  
+     # 获取传入的 ddl_text 数组
+    ddl_texts = params.get("ddl_texts")
+    
+    if not ddl_texts:
+        return {"error": "No ddl_texts provided"}
+
+    print(f"正在向量化文本: {ddl_texts}")
+    
+    # 创建空列表存储所有的向量和向量ID
+    all_vectors = []
+    all_vector_ids = []
+    
+    for ddl_text in ddl_texts:
+
+        # 向量化每一个 ddl_text
+        vector = vectorize_ddl(ddl_text)
+        
+        # 保存向量到 FAISS 并获取 ID
+        vector_ids = save_vector(vector)
+        
+        # 将 NumPy 数组转换为 Python 列表
+        vector_list = vector.tolist()
+        vector_ids_list = vector_ids.tolist()
+        
+        # 添加到结果列表
+        all_vectors.append(vector_list)
+        all_vector_ids.append(vector_ids_list)
+
+    return {"vector_ids":all_vector_ids,"vector": all_vectors }
+
+
+#向量化文本
+@router.post("/vectorize_ddl_test_search")
+async def vectorize_ddl_test_search(request: Request):
+    params = await request.json()
+  
+    # 获取传入的 ddl_text 数组
     ddl_text = params.get("ddl_text")
-    print(f"正在向量化文本: {ddl_text}")
+    if not ddl_text:
+        return {"error": "No ddl_text provided"}
+    
+    # 向量化一个 ddl_text
     vector = vectorize_ddl(ddl_text)
     
-    vector_ids=save_vector(vector) #保存到FAISS后返回的ID
+    defog = Defog()
+    db_creds = defog.db_creds
+    database_name = db_creds['database']  # 数据库名 
+    top_k = 5  # 返回前 5 个最近邻
 
-    # 将 NumPy 数组转换为 Python 列表
-    vector_list = vector.tolist()
+    faiss_manager = FaissManager(base_dir=index_path, dim=768)
+    # 调用 search 方法进行查找
+    indices = faiss_manager.search(database_name, vector, top_k)
+    # 输出返回的索引（ID）
+    print(f"查询到的最近邻索引ID: {indices}")
+    #indices返回的类似于这样的二维数组，[[ 0  1 -1 -1 -1]]
 
-    vector_ids_list = vector_ids.tolist()
+    return {"indices":indices.tolist()[0]}
 
-    return {"vector_ids":vector_ids_list,"vector": vector_list }
+
 
 
 def save_vector(vectors: np.ndarray):
