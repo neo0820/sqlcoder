@@ -5,12 +5,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlcoder import __version__
-import sqlcoder.integration_routes, sqlcoder.query_routes
+import sqlcoder.integration_routes, sqlcoder.query_routes, sqlcoder.vector_routes
 
 app = FastAPI()
 
 app.include_router(sqlcoder.integration_routes.router)
 app.include_router(sqlcoder.query_routes.router)
+app.include_router(sqlcoder.vector_routes.router)
+
 
 origins = ["*"]
 app.add_middleware(

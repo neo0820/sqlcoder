@@ -5,6 +5,7 @@ from defog import Defog
 from sqlcoder.kpaas_generate_schema  import KpaasGenerateSchema
 
 
+
 DEFOG_API_KEY = "NULL_VALUE" # placeholder, doesn't matter for any of the function here
 
 home_dir = os.path.expanduser("~")
@@ -122,12 +123,20 @@ def generate_metadata_json(tables):
     return {"metadata": metadata}
 
 
+
 @router.post("/integration/transform_metadata_to_ddl")
 async def transform_metadata_to_ddl(request: Request):
 
     params = await request.json()
     tables = params.get("tables")
+    # 返回最终的结果
+    return get_table_to_ddl(tables=tables)
 
+
+
+
+
+def get_table_to_ddl(tables):
     metadata_json = generate_metadata_json(tables=tables)
     ddl_texts = []
 
