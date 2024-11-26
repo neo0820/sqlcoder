@@ -34,6 +34,7 @@ class FaissManager:
             index = faiss.read_index(index_path)
         else:
             print(f"索引不存在，创建新索引: {db_name}")
+            #采用算法：欧氏距离（L2 距离）
             index = faiss.IndexFlatL2(self.dim)  # 初始化新索引
         self.index_map[db_name] = index
 
