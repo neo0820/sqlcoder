@@ -203,8 +203,9 @@ async def transform_column_metadata_to_vector_mix(request: Request):
             vector_id = vector_id_list[0]
             mixed_ddl_text = f"vector_ids:{vector_id},{ddl_text}"
             mixed_ddl_texts.append(mixed_ddl_text)
+    
+   
 
-    # 返回合并后的结果
     return {"ddl_texts": mixed_ddl_texts}
 
 
@@ -235,11 +236,21 @@ async def transform_table_metadata_to_vector_mix(request: Request):
     for vector_id_list, ddl_text in zip(vector_ids, ddl_texts):
         if vector_id_list:  # 每个向量可能有多个 ID，这里取第一个
             vector_id = vector_id_list[0]
-            mixed_ddl_text = f"vector_ids:{vector_id},{ddl_text}"
-            mixed_ddl_texts.append(mixed_ddl_text)
+            # 跳过空值或空字符串
+            if not ddl_text.get('table_description') or ddl_text.get('table_description').strip() == "":
+                continue
+            #mixed_ddl_text = f"vector_ids:{vector_id},table_name:{ddl_text.get('table_name')},table_description:{ddl_text.get('table_description')}"
+            mixed_ddl_texts.append( { "vector_ids":vector_id, "table_name":ddl_text.get('table_name'),"table_description":ddl_text.get('table_description')})
 
-    # 返回合并后的结果
-    return {"ddl_texts": mixed_ddl_texts}
+     # 返回合并后的结果
+    metadata ={"ddl_texts": mixed_ddl_texts}
+
+    # 写入JSON元数据
+    with open(os.path.join(defog_path, "metadata_vector.json"), "w") as f:
+        json.dump(metadata, f)
+    print("json元数据文件metadata_vector.json写入完毕！")
+
+    return metadata
 
 
 
@@ -285,11 +296,14 @@ def get_table_to_ddl(tables):
         # data_type = item.get("data_type", "")
         # column_description = item.get("column_description", "")
         table_description = item.get("table_description", "")
+        
+        if not table_description or table_description.strip() == "":
+            continue
 
         # 创建对应的DDL文本格式
         # ddl_text = f"table_name: {table_name}, table_description: {table_description}"
-        ddl_text = table_description
-        ddl_texts.append(ddl_text)
+        #ddl_text = table_description
+        ddl_texts.append({ "table_name": table_name, "table_description": table_description })
 
     print("========================ddl_texts========================")
     print({"ddl_texts": ddl_texts})

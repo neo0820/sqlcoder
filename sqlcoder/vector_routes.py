@@ -26,8 +26,8 @@ def load_ddl_vector_model(device_type):
     :return: 加载的模型实例。
     """
     if device_type == "gpu":
-        print("加载GPU优化的DDL模型 paraphrase-mpnet-base-v2...")
-        return SentenceTransformer('paraphrase-mpnet-base-v2', device='cuda')  # 更强大但资源需求更高的模型
+        print("加载GPU优化的DDL模型 WangZeJun/simbert-base-chinese...")
+        return SentenceTransformer('WangZeJun/simbert-base-chinese', device='cuda')  # 更强大但资源需求更高的模型
     elif device_type == "apple_silicon":
         print("加载适用于 Apple Silicon 的DDL模型 paraphrase-MiniLM-L6-v2...")
         return SentenceTransformer('paraphrase-MiniLM-L6-v2', device='cpu')  # Apple Silicon 优化
@@ -64,12 +64,15 @@ def vectorize_ddl_save_ids(ddl_texts):
     all_vector_ids = []
     
     for ddl_text in ddl_texts:
+        # 跳过空值或空字符串
+        if not ddl_text.get('table_description') or ddl_text.get('table_description').strip() == "":
+            continue
 
         # 向量化每一个 ddl_text
-        vector = vectorize_ddl(ddl_text)
+        vector = vectorize_ddl(ddl_text.get('table_description'))
         
         # 保存向量到 FAISS 并获取 ID
-        vector_ids = save_vector(vector)
+        vector_ids = save_vector(vector,ddl_text.get('table_description'))
         
         # 将 NumPy 数组转换为 Python 列表
         vector_list = vector.tolist()
@@ -82,36 +85,14 @@ def vectorize_ddl_save_ids(ddl_texts):
         # 返回的是二维数组
     return {"vector_ids":all_vector_ids}
 
-def save_vector(vectors: np.ndarray):
+def save_vector(vectors: np.ndarray,value: str):
     defog = Defog()
     db_creds = defog.db_creds
     database_name = db_creds['database']  # 数据库名 
 
     faiss_manager = FaissManager(base_dir=index_path, dim=768)
 
-    # 打印向量维度和类型以进行调试
-    print("Adding vectors with shape:", vectors.shape)
-    print("Data type:", vectors.dtype)
-    
-    print("==============~~~~~~~~~vectors shape:", vectors.shape)
-    # 假设 vectors 是一维数组 
-    print("vectors shape before reshape:", vectors.shape)
-    if len(vectors.shape) == 1:
-        vectors = vectors.reshape(1, -1)  # 转换成二维形状，(1, 768)
-        print("=====是一维数组======")
-    else:
-        print("=====是二维数组======")
-    print("vectors shape after reshape:", vectors.shape)
-
-
-
-    # 确保向量维度正确并转换为 float32 类型
-    if vectors.shape[1] != 768:
-        raise ValueError(f"向量维度不匹配！索引需要 768 维，实际为 {vectors.shape[1]} 维。")
-    
-    vectors = vectors.astype(np.float32)  # 确保是 float32 类型
-
-    vector_ids = faiss_manager.add_vectors(database_name, vectors)
+    vector_ids = faiss_manager.add_vectors(database_name, vectors, value)
     print(f"添加向量后返回的ID:")
     print(vector_ids)
     return vector_ids
@@ -127,37 +108,72 @@ async def vectorize_ddl_test_save(request: Request):
 
 
 
-
-
-
-
-#向量化文本
-@router.post("/vectorize_ddl_test_search")
-async def vectorize_ddl_test_search(request: Request):
-    params = await request.json()
-  
-    # 获取传入的 ddl_text 数组
-    ddl_text = params.get("ddl_text")
-    if not ddl_text:
-        return {"error": "No ddl_text provided"}
+def search_vectorize(search_text: str, top_k: int = 5, distance_threshold: float = 0.5):
     
-    # 向量化一个 ddl_text
-    vector = vectorize_ddl(ddl_text)
+    if not search_text:
+        return {"error": "No search_text provided"}
+    print(f"待查找的值: {search_text}")
+
+    # 设置返回数量，默认为5
+    if not top_k:
+        top_k = 5
+
+    # 设定距离阈值,默认是0.5
+    if not distance_threshold:
+        distance_threshold = 0.5
+
+
+    # 向量化一个 search_text
+    vector = vectorize_ddl(search_text)
     
     defog = Defog()
     db_creds = defog.db_creds
     database_name = db_creds['database']  # 数据库名 
-    top_k = 5  # 返回前 5 个最近邻
+    #top_k = rtn_num  # 返回前 5 个最近邻
 
     faiss_manager = FaissManager(base_dir=index_path, dim=768)
     # 调用 search 方法进行查找
-    indices = faiss_manager.search(database_name, vector, top_k)
-    # 输出返回的索引（ID）
-    print(f"查询到的最近邻索引ID: {indices}")
-    #indices返回的类似于这样的二维数组，[[ 0  1 -1 -1 -1]]
+    search_results = faiss_manager.search(database_name, vector, top_k)
+    #查找结果: {'indices': [13, 14, 240, 245, 5], 'distances': [0.208731546998024, 0.2659868001937866, 0.31992244720458984, 0.3447423279285431, 0.36340105533599854]}
+    print(f"查找结果: {search_results}")
+    indices = search_results.get("indices")  # 索引 ID
+    distances = search_results.get("distances")  # 距离值
+    
+    # 按照距离过滤结果
+    filtered_results = [
+        (idx, dist) for idx, dist in zip(indices, distances) 
+        if 0 <= dist <= distance_threshold
+    ]
+    
+    # 拆分过滤后的索引和距离
+    filtered_indices = [item[0] for item in filtered_results]
+    filtered_distances = [item[1] for item in filtered_results]
 
-    return indices
+    print(f"过滤后的最近邻索引ID: {filtered_indices}")
+    print(f"过滤后的距离: {filtered_distances}")
+    
+    return {
+        "indices": filtered_indices,
+        "distances": filtered_distances
+    }
 
+
+
+#向量化文本
+@router.post("/search_vectorize_json")
+async def search_vectorize_json(request: Request):
+    params = await request.json()
+  
+    # 获取传入的 search_text 数组
+    search_text = params.get("search_text")
+    # 设置最近邻数量
+    top_k  = params.get("top_k")
+    # 距离阈值，用于筛选相关结果
+    distance_threshold = params.get("distance_threshold")
+
+    return search_vectorize(search_text, top_k, distance_threshold)
+
+    
 
 
 @router.post("/vectorize_delete_index")

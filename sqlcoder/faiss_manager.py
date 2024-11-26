@@ -1,6 +1,7 @@
 import faiss
 import numpy as np
 import os
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 class FaissManager:
     def __init__(self, base_dir: str, dim: int = 768):
@@ -36,9 +37,22 @@ class FaissManager:
             print(f"索引不存在，创建新索引: {db_name}")
             #采用算法：欧氏距离（L2 距离）
             index = faiss.IndexFlatL2(self.dim)  # 初始化新索引
+
+             # HNSW 索引
+            # index = faiss.IndexHNSWFlat(self.dim, 16)
+            # index.hnsw.efConstruction = 200
+
+            # 改为支持内积的索引（归一化后可用作余弦相似度）
+            # index = faiss.IndexFlatIP(self.dim) 
+
         self.index_map[db_name] = index
 
-    def add_vectors(self, db_name: str, vectors: np.ndarray):
+    def _normalize_vectors(self, vectors: np.ndarray) -> np.ndarray:
+        """归一化向量，使其模为1"""
+        norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+        return vectors / norms
+
+    def add_vectors(self, db_name: str, vectors: np.ndarray, value: str):
         """
         添加向量到指定数据库的索引中。
         :param db_name: 数据库名。
@@ -50,13 +64,35 @@ class FaissManager:
 
         index = self.index_map[db_name]
 
-        if vectors.shape[1] != self.dim:
-            raise ValueError(f"向量维度不匹配！索引需要 {self.dim} 维，实际为 {vectors.shape[1]} 维。")
+
+        # 打印向量维度和类型以进行调试
+        # print("Adding vectors with shape:", vectors.shape)
+        # print("Data type:", vectors.dtype)
+        
+        # print("==============~~~~~~~~~vectors shape:", vectors.shape)
+        # # 假设 vectors 是一维数组 
+        # print("vectors shape before reshape:", vectors.shape)
+        if len(vectors.shape) == 1:
+            vectors = vectors.reshape(1, -1)  # 转换成二维形状，(1, 768)
+        #     print("=====是一维数组======")
+        # else:
+        #     print("=====是二维数组======")
+        # print("vectors shape after reshape:", vectors.shape)
+
+
+        # 确保向量维度正确并转换为 float32 类型
+        if vectors.shape[1] != 768:
+            raise ValueError(f"向量维度不匹配！索引需要 768 维，实际为 {vectors.shape[1]} 维。")
+        
+        vectors = vectors.astype(np.float32)  # 确保是 float32 类型
+
+
+        # 归一化向量
+        vectors = self._normalize_vectors(vectors)
 
         # 向量的ID会自动生成，ID从0开始递增
         index.add(vectors)
-        print(f"添加 {vectors.shape[0]} 个向量到索引: {db_name}")
-
+        print(f"添加 {vectors.shape[0]} 个向量值 {value} 到索引: {db_name}")
         # 改为手动计算新增的向量ID
         start_id = index.ntotal - vectors.shape[0]
         end_id = index.ntotal
@@ -95,22 +131,30 @@ class FaissManager:
         index = self.index_map[db_name]
 
         # 打印向量维度和类型以进行调试
-        print("Adding vectors with shape:", query_vectors.shape)
-        print("Data type:", query_vectors.dtype)
+        # print("Adding vectors with shape:", query_vectors.shape)
+        # print("Data type:", query_vectors.dtype)
         
-        print("==============~~~~~~~~~vectors shape:", query_vectors.shape)
-        # 假设 vectors 是一维数组 
-        print("vectors shape before reshape:", query_vectors.shape)
+        # print("==============~~~~~~~~~vectors:", query_vectors)
+        # print("==============~~~~~~~~~vectors shape:", query_vectors.shape)
+
+        # # 假设 vectors 是一维数组 
+        # FAISS 的索引需要二维数组作为输入，例如 (1, 768)，代表 1 个 768 维的向量。你的输入是 (768,)，代表一维向量。这会触发 IndexError。
+        # 转换 (768,) 为 (1, 768) 的操作实际上只是“告诉”代码，这是一个含有 1 个向量的二维数组，而不会改变其数值含义。
+        # print("vectors shape before reshape:", query_vectors.shape)
         if len(query_vectors.shape) == 1:
             query_vectors = query_vectors.reshape(1, -1)  # 转换成二维形状，(1, 768)
-            print("=====是一维数组======")
-        else:
-            print("=====是二维数组======")
-        print("vectors shape after reshape:", query_vectors.shape)
+            # print("=====是一维数组======")
+        # else:
+        #     print("=====是二维数组======")
+        # print("vectors shape after reshape:", query_vectors.shape)
 
 
         if query_vectors.shape[1] != self.dim:
             raise ValueError(f"查询向量维度不匹配！索引需要 {self.dim} 维，实际为 {query_vectors.shape[1]} 维。")
+
+        # 归一化查询向量
+        query_vectors = self._normalize_vectors(query_vectors)
+
 
         distances, indices = index.search(query_vectors, top_k)
         #indices返回的类似于这样的二维数组，[[ 0  1 -1 -1 -1]]
@@ -155,3 +199,5 @@ class FaissManager:
             print(f"索引文件已删除: {index_path}")
         else:
             print(f"索引文件不存在，无需删除: {index_path}")
+
+    
