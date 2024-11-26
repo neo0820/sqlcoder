@@ -8,24 +8,18 @@ import numpy as np
 from defog import Defog
 from defog.query import execute_query_once
 from huggingface_hub import hf_hub_download
+from sqlcoder.metadata_utils import (
+    detect_device_type,
+    convert_nested_dict_to_list,
+    get_metadata_json,
+    generate_cloumn_metadata_json,
+    generate_table_metadata_json,
+    get_column_to_ddl,
+    get_table_to_ddl,
+    convert_metadata_to_ddl,
+)
 
 
-def detect_device_type():
-    """
-    检测设备类型，返回 'gpu', 'cpu', 或 'apple_silicon'。
-    """
-    import os
-    import sys
-
-    if os.popen("lspci | grep -i nvidia").read():
-        return "gpu"
-    elif sys.platform == "darwin" and os.uname().machine == "arm64":
-        return "apple_silicon"
-    else:
-        return "cpu"
-
-# 检测设备类型
-device_type = detect_device_type()
 
 
 
@@ -37,9 +31,11 @@ device_type = detect_device_type()
 
 router = APIRouter()
 
-device_type = None
+device_type = detect_device_type()
+# device_type = None
 generate_function = None
 ddl_vector_model = None  # 量化模型实例
+# 检测设备类型
 
 
 
@@ -51,15 +47,15 @@ defog_path = os.path.join(home_dir, ".defog")
 # stuff that we need to do only once, before everything is loaded
 
 # 检测设备类型
-def detect_device_type():
-    if os.popen("lspci | grep -i nvidia").read():
-        return "gpu"
-    elif sys.platform == "darwin" and os.uname().machine == "arm64":
-        return "apple_silicon"
-    else:
-        return "cpu"
+# def detect_device_type():
+#     if os.popen("lspci | grep -i nvidia").read():
+#         return "gpu"
+#     elif sys.platform == "darwin" and os.uname().machine == "arm64":
+#         return "apple_silicon"
+#     else:
+#         return "cpu"
 
-device_type = detect_device_type()
+# device_type = detect_device_type()
 
 
 # 加载SQL生成模型
@@ -113,27 +109,6 @@ def load_sql_model():
         )["choices"][0]["text"].split(";")[0].split("```")[0].strip() + ";"
 
 generate_function = load_sql_model()
-
-
-
-
-
-
-
-
-def convert_metadata_to_ddl(metadata):
-    # metadata is a dictionary of a table
-    master_ddl = ""
-    for table_name, columns in metadata.items():
-        ddl = f"CREATE TABLE {table_name} (\n"
-        table_description=""
-        for column in columns:
-            ddl += f"    {column['column_name']} {column['data_type']} COMMENT '{column['column_description']}',\n"
-            table_description = column['table_description']
-        ddl = ddl[:-2] + f"\n) COMMENT='{table_description}';"
-        master_ddl += ddl + "\n\n"
-    return master_ddl
-
 
 
 
