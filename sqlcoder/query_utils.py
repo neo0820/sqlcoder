@@ -88,16 +88,15 @@ def load_sql_model():
             repeat_penalty=1.0
         )["choices"][0]["text"].split(";")[0].split("```")[0].strip() + ";"
 
+#注意，这里load_sql_model别让多次加载，执行一次，别的地方调用generate_function取值就好，否则会出现gpu内存溢出的问题
 generate_function = load_sql_model()
 
-def query(question):
+def get_query_by_nl(question):
+    import torch
     torch.cuda.empty_cache()
-    print("==================1111111")
     with open(os.path.join(defog_path, "metadata.json"), "r") as f:
         metadata = json.load(f)
-    print("==================2222222")
     ddl = convert_metadata_to_ddl(metadata)
-    print("==================3333333")
     prompt = f"""### Task
 Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
 
@@ -113,7 +112,6 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
 [SQL]
 """
     query = generate_function(prompt)
-    print("==================44444444")
     defog = Defog()
     print(f"defog.db_type: {defog.db_type}")
     

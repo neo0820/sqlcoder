@@ -4,7 +4,7 @@ import sys
 import json
 import sqlglot
 import numpy as np
-import torch
+
 
 from defog import Defog
 from defog.query import execute_query_once
@@ -21,17 +21,19 @@ from sqlcoder.metadata_utils import (
 )
 
 from sqlcoder.query_utils import (
-    query,
+    get_query_by_nl,
     get_device_type,
     convert_sql,
     load_sql_model,
+    generate_function
 )
 
 router = APIRouter()
 
 home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
-generate_function = load_sql_model()
+
+# generate_function = load_sql_model()
 
 @router.post("/get_device_type")
 async def get_device_type():
@@ -41,51 +43,7 @@ async def get_device_type():
 async def query(request: Request):
     body = await request.json()
     question = body.get("question")
-    
-    torch.cuda.empty_cache()
-    print("==================1111111")
-    with open(os.path.join(defog_path, "metadata.json"), "r") as f:
-        metadata = json.load(f)
-    print("==================2222222")
-    ddl = convert_metadata_to_ddl(metadata)
-    print("==================3333333")
-    prompt = f"""### Task
-Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
-
-### Instructions
-- If you cannot answer the question with the available database schema, return 'I do not know'
-
-### Database Schema
-The query will run on a database with the following schema:
-{ddl}
-
-### Answer
-Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
-[SQL]
-"""
-    print("==================prompt")
-    print(prompt)
-    
-    query = generate_function(prompt)
-    print("==================44444444")
-    defog = Defog()
-    print(f"defog.db_type: {defog.db_type}")
-    
-    db_type = defog.db_type or "postgres"
-    db_creds = defog.db_creds
-    query = convert_sql(query,source_db="postgres", target_db=db_type)
-    
-    columns, data = execute_query_once(db_type, db_creds, query)
-    
-    return {
-        "ddl": ddl,
-        "prompt": prompt,
-        "query_generated": query,
-        "columns": columns,
-        "data": data,
-        "ran_successfully": True,
-        "db_type": db_type
-    }
+    return get_query_by_nl(question)
     
 
 
