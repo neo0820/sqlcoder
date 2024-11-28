@@ -91,7 +91,76 @@ def load_sql_model():
 #注意，这里load_sql_model别让多次加载，执行一次，别的地方调用generate_function取值就好，否则会出现gpu内存溢出的问题
 generate_function = load_sql_model()
 
-def get_query_by_nl(question):
+
+def get_query_by_nl(question,top_k,distance_threshold):
+    
+    #分段执行
+    vectorize_table_json = get_query_by_nl_step1(question,top_k,distance_threshold)
+    
+    return get_query_by_nl_step2(vectorize_table_json)
+
+
+def get_query_by_nl_step1(question,top_k,distance_threshold):
+    import torch
+    torch.cuda.empty_cache()
+    # with open(os.path.join(defog_path, "metadata.json"), "r") as f:
+    #     metadata = json.load(f)
+    # ddl = convert_metadata_to_ddl(metadata)
+    
+    vectorize_table_json = search_vectorize_2_table(question, top_k, distance_threshold)
+    vectorize_table_json["question"] = question
+    return vectorize_table_json
+
+def get_query_by_nl_step2(vectorize_table_json):
+    question = vectorize_table_json.get("question")
+    table_names = vectorize_table_json.get("table_names")
+    table_descriptions = vectorize_table_json.get("table_descriptions")
+
+    table_2_ddl_json = search_table_2_ddl(table_names)
+    ddl = table_2_ddl_json.get("ddl")
+
+    prompt = f"""### Task
+Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
+
+### Instructions
+- If you cannot answer the question with the available database schema, return 'I do not know'
+
+### Database Schema
+The query will run on a database with the following schema:
+{ddl}
+
+### Answer
+Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+[SQL]
+"""
+    query = generate_function(prompt)
+    defog = Defog()
+    print(f"defog.db_type: {defog.db_type}")
+    
+    db_type = defog.db_type or "postgres"
+    db_creds = defog.db_creds
+    query = convert_sql(query,source_db="postgres", target_db=db_type)
+    
+    # columns, data = execute_query_once(db_type, db_creds, query)
+    
+    return {
+        
+        "table_descriptions": table_descriptions,
+        "table_names":  table_names,
+        #"ddl": ddl,
+        #"prompt": prompt,
+        "sql": query,
+        # "columns": columns,
+        # "data": data,
+        #"ran_successfully": True,
+        
+        "db_type": db_type
+    }
+
+
+
+
+def get_query_by_nl_test(question):
     import torch
     torch.cuda.empty_cache()
     with open(os.path.join(defog_path, "metadata.json"), "r") as f:
@@ -118,7 +187,6 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
     query = convert_sql(query,source_db="postgres", target_db=db_type)
-    
     columns, data = execute_query_once(db_type, db_creds, query)
     
     return {

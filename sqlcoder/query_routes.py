@@ -21,7 +21,10 @@ from sqlcoder.metadata_utils import (
 )
 
 from sqlcoder.query_utils import (
+    get_query_by_nl_test,
     get_query_by_nl,
+    get_query_by_nl_step1,
+    get_query_by_nl_step2,
     get_device_type,
     convert_sql,
     load_sql_model,
@@ -39,12 +42,41 @@ defog_path = os.path.join(home_dir, ".defog")
 async def get_device_type():
     return detect_device_type()
 
-@router.post("/query")
-async def query(request: Request):
+@router.post("/query_test")
+async def query_test(request: Request):
     body = await request.json()
     question = body.get("question")
-    return get_query_by_nl(question)
-    
+    return get_query_by_nl_test(question)
 
+@router.post("/query")
+async def query(request: Request):
+
+    params = await request.json()
+    # 获取传入的 question 问题
+    question = params.get("question")
+    # 设置最近邻数量
+    top_k  = params.get("top_k")
+    # 距离阈值，用于筛选相关结果
+    distance_threshold = params.get("distance_threshold")
+
+    return get_query_by_nl(question,top_k,distance_threshold)    
+
+@router.post("/query_step1")
+async def query_step1(request: Request):
+    params = await request.json()
+    # 获取传入的 question 问题
+    question = params.get("question")
+    # 设置最近邻数量
+    top_k  = params.get("top_k")
+    # 距离阈值，用于筛选相关结果
+    distance_threshold = params.get("distance_threshold")
+
+    return get_query_by_nl_step1(question,top_k,distance_threshold)
+
+
+@router.post("/query_step2")
+async def query_step2(request: Request):
+    params = await request.json()
+    return get_query_by_nl_step2(params)
 
 

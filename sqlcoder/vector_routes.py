@@ -44,28 +44,29 @@ async def vectorize_ddl_test_save(request: Request):
 async def search_vectorize_json(request: Request):
     params = await request.json()
   
-    # 获取传入的 search_text 数组
-    search_text = params.get("search_text")
+    # 获取传入的 question 问题
+    question = params.get("question")
     # 设置最近邻数量
     top_k  = params.get("top_k")
     # 距离阈值，用于筛选相关结果
     distance_threshold = params.get("distance_threshold")
 
-    return search_vectorize(search_text, top_k, distance_threshold)
+    return search_vectorize(question, top_k, distance_threshold)
 
 #查找文本，返回其向量相关的表结构
 @router.post("/search_vectorize_2_table_json")
 async def search_vectorize_2_table_json(request: Request):
     params = await request.json()
   
-    # 获取传入的 search_text 数组
-    search_text = params.get("search_text")
+    # 获取传入的 question 问题
+    question = params.get("question")
     # 设置最近邻数量
     top_k  = params.get("top_k")
     # 距离阈值，用于筛选相关结果
     distance_threshold = params.get("distance_threshold")
 
-    return search_vectorize_2_table(search_text, top_k, distance_threshold)
+    return search_vectorize_2_table(question, top_k, distance_threshold)
+
 
 #通过表名返回表的元数据。
 @router.post("/search_table_2_ddl_json")
