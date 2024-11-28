@@ -124,6 +124,7 @@ async def query(request: Request):
     body = await request.json()
     question = body.get("question")
     
+    import torch
     torch.cuda.empty_cache()
 
     with open(os.path.join(defog_path, "metadata.json"), "r") as f:
