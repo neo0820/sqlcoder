@@ -4,120 +4,38 @@ import sys
 import json
 import sqlglot
 import numpy as np
+import torch
 
 from defog import Defog
 from defog.query import execute_query_once
 from huggingface_hub import hf_hub_download
+
 from sqlcoder.metadata_utils import (
     detect_device_type,
-    convert_nested_dict_to_list,
-    get_metadata_json,
+    convert_metadata_to_ddl,
     generate_cloumn_metadata_json,
     generate_table_metadata_json,
     get_column_to_ddl,
+    get_metadata_json,
     get_table_to_ddl,
-    convert_metadata_to_ddl,
 )
 
-
-
-
-
-# 测试模型加载和向量化
-# ddl_text = "表名: base_dictionarydata, 列名: F_Id, 数据类型: varchar, 列描述: , 表描述: 字典数据"
-# vector = ddl_vector_model.encode(ddl_text)
-# print("DDL向量化结果:", vector)
-
+from sqlcoder.query_utils import (
+    query,
+    get_device_type,
+    convert_sql,
+    load_sql_model,
+)
 
 router = APIRouter()
 
-device_type = detect_device_type()
-# device_type = None
-generate_function = None
-ddl_vector_model = None  # 量化模型实例
-# 检测设备类型
-
-
-
-DEFOG_API_KEY = "NULL_VALUE" # placeholder, doesn't matter for any of the function here
-
 home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
-
-# stuff that we need to do only once, before everything is loaded
-
-# 检测设备类型
-# def detect_device_type():
-#     if os.popen("lspci | grep -i nvidia").read():
-#         return "gpu"
-#     elif sys.platform == "darwin" and os.uname().machine == "arm64":
-#         return "apple_silicon"
-#     else:
-#         return "cpu"
-
-# device_type = detect_device_type()
-
-
-# 加载SQL生成模型
-def load_sql_model():
-    if device_type == "gpu":
-        import torch
-        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-
-        model = AutoModelForCausalLM.from_pretrained(
-            "defog/llama-3-sqlcoder-8b",
-            device_map="auto",
-            torch_dtype=torch.float16
-        )
-        tokenizer = AutoTokenizer.from_pretrained("defog/llama-3-sqlcoder-8b")
-        pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
-        return lambda prompt: pipe(
-            prompt,
-            max_new_tokens=512,
-            do_sample=False,
-            num_beams=3,
-            num_return_sequences=1,
-            return_full_text=False,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.eos_token_id,
-        )[0]["generated_text"].split(";")[0].split("```")[0].strip() + ";"
-    else:
-        from llama_cpp import Llama
-
-        filepath = os.path.join(defog_path, "sqlcoder-7b-q5_k_m.gguf")
-
-        if not os.path.exists(filepath):
-            print(
-                "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
-            )
-
-            # 下载 GGUF 文件
-            hf_hub_download(repo_id="defog/sqlcoder-7b-2", filename="sqlcoder-7b-q5_k_m.gguf", local_dir=defog_path)
-
-        if device_type == "apple_silicon":
-            llm = Llama(model_path=filepath, n_gpu_layers=-1, n_ctx=4096)
-        else:
-            llm = Llama(model_path=filepath, n_ctx=4096)
-
-        return lambda prompt: llm(
-            prompt,
-            max_tokens=512,
-            temperature=0,
-            top_p=1,
-            echo=False,
-            repeat_penalty=1.0
-        )["choices"][0]["text"].split(";")[0].split("```")[0].strip() + ";"
-
 generate_function = load_sql_model()
-
-
-
-
-
 
 @router.post("/get_device_type")
 async def get_device_type():
-    return {"device_type": device_type}
+    return detect_device_type()
 
 @router.post("/query")
 async def query(request: Request):
@@ -125,12 +43,12 @@ async def query(request: Request):
     question = body.get("question")
     
     torch.cuda.empty_cache()
-
+    print("==================1111111")
     with open(os.path.join(defog_path, "metadata.json"), "r") as f:
         metadata = json.load(f)
-    
+    print("==================2222222")
     ddl = convert_metadata_to_ddl(metadata)
-
+    print("==================3333333")
     prompt = f"""### Task
 Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
 
@@ -145,8 +63,11 @@ The query will run on a database with the following schema:
 Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
 [SQL]
 """
-    query = generate_function(prompt)
+    print("==================prompt")
+    print(prompt)
     
+    query = generate_function(prompt)
+    print("==================44444444")
     defog = Defog()
     print(f"defog.db_type: {defog.db_type}")
     
@@ -165,14 +86,7 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
         "ran_successfully": True,
         "db_type": db_type
     }
+    
 
 
-# 定义一个函数，用于将 SQL 查询从一种数据库类型转换为另一种
-def convert_sql(query: str, source_db: str, target_db: str) -> str:
-    try:
-        # 使用 sqlglot 解析 SQL 语句并转换为目标数据库方言
-        converted_query = sqlglot.transpile(query, read=source_db, write=target_db)[0]
-        return converted_query
-    except Exception as e:
-        print(f"SQL conversion error: {e}")
-        return None
+

@@ -163,8 +163,8 @@ def search_vectorize(search_text: str, top_k: int = 5, distance_threshold: float
     }
 
 
-
-def search_vectorize_join_ddl(search_text: str, top_k: int = 5, distance_threshold: float = 0.5):
+#把查找先输出成查找表格清单
+def search_vectorize_2_table(search_text: str, top_k: int = 5, distance_threshold: float = 0.5):
     #获取查找值
     search_vectorize_value = search_vectorize(search_text, top_k, distance_threshold)
     #获取元数据json表格
@@ -197,11 +197,7 @@ def search_vectorize_join_ddl(search_text: str, top_k: int = 5, distance_thresho
     # 构建返回的 table_name 和 table_description 列表
     table_names = [item["table_name"] for item in filtered_data]
     table_descriptions = [item["table_description"] for item in filtered_data]
-    
-
-    metadata= get_metadata_json(table_names)
-
-    ddl = convert_metadata_to_ddl(metadata)
+        
 
     # 返回结果
     return {
@@ -209,7 +205,24 @@ def search_vectorize_join_ddl(search_text: str, top_k: int = 5, distance_thresho
         "distances": distances,
         "table_names": table_names,
         "table_descriptions": table_descriptions,
-        "metadata":metadata,
-        "ddl":ddl
     }
 
+#支持从筛选后的清单输出表格的DDL元数据
+def search_table_2_ddl(table_names: str):
+    metadata= get_metadata_json(table_names)
+    ddl = convert_metadata_to_ddl(metadata)
+    return {
+        "metadata": metadata,
+        "ddl": ddl
+    }
+
+
+def delete_index(path: str ):
+    defog = Defog()
+    db_creds = defog.db_creds
+    database_name = db_creds['database']  # 数据库名 
+
+    faiss_manager = FaissManager(base_dir=path, dim=768)
+    faiss_manager.delete_index(database_name)
+    print(f"msg:", f"索引{database_name}:已删除!")
+    return {"msg": f"索引{database_name}:已删除!"}

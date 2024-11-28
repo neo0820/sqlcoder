@@ -7,8 +7,7 @@ from sqlcoder.vector_utils import (
     vectorize_ddl,
     vectorize_ddl_save_ids,
     save_vector,
-    search_vectorize,
-    search_vectorize_join_ddl,
+    search_vectorize
 )
 from sqlcoder.metadata_utils import (
     detect_device_type,
