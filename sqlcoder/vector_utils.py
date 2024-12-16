@@ -5,7 +5,7 @@ import json
 from sentence_transformers import SentenceTransformer
 from defog import Defog
 import numpy as np
-from sqlcoder.faiss_manager import FaissManager
+from sqlcoder.faiss_manager import FaissManager, vector_dim
 from sqlcoder.metadata_utils import (
     detect_device_type,
     convert_nested_dict_to_list,
@@ -16,6 +16,7 @@ from sqlcoder.metadata_utils import (
     get_table_to_ddl,
     convert_metadata_to_ddl,
 )
+
 
 
 #向量索引路径
@@ -43,8 +44,8 @@ def load_ddl_vector_model(device_type):
         print("加载适用于 Apple Silicon 的DDL模型 paraphrase-MiniLM-L6-v2...")
         return SentenceTransformer('paraphrase-MiniLM-L6-v2', device='cpu')  # Apple Silicon 优化
     else:
-        print("加载轻量化的DDL模型 paraphrase-MiniLM-L6-v2 (CPU 模式)...")
-        return SentenceTransformer('paraphrase-MiniLM-L6-v2', device='cpu')  # 轻量化模型
+        print("加载轻量化的DDL模型 WangZeJun/simbert-base-chinese (CPU 模式)...")
+        return SentenceTransformer('WangZeJun/simbert-base-chinese', device='cpu')  # 轻量化模型
 
 
 # 加载DDL向量化模型
@@ -98,12 +99,13 @@ def vectorize_ddl_save_ids(ddl_texts):
         # 返回的是二维数组
     return {"vector_ids":all_vector_ids}
 
+
 def save_vector(vectors: np.ndarray,value: str):
     defog = Defog()
     db_creds = defog.db_creds
     database_name = db_creds['database']  # 数据库名 
 
-    faiss_manager = FaissManager(base_dir=index_path, dim=768)
+    faiss_manager = FaissManager(base_dir=index_path, dim=vector_dim)
 
     vector_ids = faiss_manager.add_vectors(database_name, vectors, value)
     print(f"添加向量后返回的ID:")
@@ -136,7 +138,7 @@ def search_vectorize(search_text: str, top_k: int = 5, distance_threshold: float
     database_name = db_creds['database']  # 数据库名 
     #top_k = rtn_num  # 返回前 5 个最近邻
 
-    faiss_manager = FaissManager(base_dir=index_path, dim=768)
+    faiss_manager = FaissManager(base_dir=index_path, dim=vector_dim)
     # 调用 search 方法进行查找
     search_results = faiss_manager.search(database_name, vector, top_k)
     #查找结果: {'indices': [13, 14, 240, 245, 5], 'distances': [0.208731546998024, 0.2659868001937866, 0.31992244720458984, 0.3447423279285431, 0.36340105533599854]}
@@ -222,7 +224,7 @@ def delete_index(path: str ):
     db_creds = defog.db_creds
     database_name = db_creds['database']  # 数据库名 
 
-    faiss_manager = FaissManager(base_dir=path, dim=768)
+    faiss_manager = FaissManager(base_dir=path, dim=vector_dim)
     faiss_manager.delete_index(database_name)
     print(f"msg:", f"索引{database_name}:已删除!")
     return {"msg": f"索引{database_name}:已删除!"}

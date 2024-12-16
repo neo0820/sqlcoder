@@ -64,15 +64,15 @@ def load_sql_model():
     else:
         from llama_cpp import Llama
 
-        filepath = os.path.join(defog_path, "sqlcoder-7b-q5_k_m.gguf")
+        filepath = os.path.join(defog_path, "llama-3-sqlcoder-8b.Q8_0.gguf")
 
         if not os.path.exists(filepath):
             print(
-                "Downloading the SQLCoder-7b GGUF file. This is a 4GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
+                "Downloading the llama-3-sqlcoder-8b  GGUF file. This is a 4GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
             )
 
             # 下载 GGUF 文件
-            hf_hub_download(repo_id="defog/sqlcoder-7b-2", filename="sqlcoder-7b-q5_k_m.gguf", local_dir=defog_path)
+            hf_hub_download(repo_id="QuantFactory/llama-3-sqlcoder-8b-GGUF", filename="llama-3-sqlcoder-8b.Q8_0.gguf", local_dir=defog_path)
 
         if device_type == "apple_silicon":
             llm = Llama(model_path=filepath, n_gpu_layers=-1, n_ctx=4096)
@@ -93,10 +93,10 @@ generate_function = load_sql_model()
 
 
 def get_query_by_nl(question,top_k,distance_threshold):
-    
+
     #分段执行
     vectorize_table_json = get_query_by_nl_step1(question,top_k,distance_threshold)
-    
+
     return get_query_by_nl_step2(vectorize_table_json)
 
 
@@ -106,7 +106,7 @@ def get_query_by_nl_step1(question,top_k,distance_threshold):
     # with open(os.path.join(defog_path, "metadata.json"), "r") as f:
     #     metadata = json.load(f)
     # ddl = convert_metadata_to_ddl(metadata)
-    
+
     vectorize_table_json = search_vectorize_2_table(question, top_k, distance_threshold)
     vectorize_table_json["question"] = question
     return vectorize_table_json
@@ -136,15 +136,15 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
     query = generate_function(prompt)
     defog = Defog()
     print(f"defog.db_type: {defog.db_type}")
-    
+
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
     query = convert_sql(query,source_db="postgres", target_db=db_type)
-    
+
     # columns, data = execute_query_once(db_type, db_creds, query)
-    
+
     return {
-        
+
         "table_descriptions": table_descriptions,
         "table_names":  table_names,
         #"ddl": ddl,
@@ -153,7 +153,7 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
         # "columns": columns,
         # "data": data,
         #"ran_successfully": True,
-        
+
         "db_type": db_type
     }
 
@@ -183,12 +183,12 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
     query = generate_function(prompt)
     defog = Defog()
     print(f"defog.db_type: {defog.db_type}")
-    
+
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
     query = convert_sql(query,source_db="postgres", target_db=db_type)
     columns, data = execute_query_once(db_type, db_creds, query)
-    
+
     return {
         "ddl": ddl,
         "prompt": prompt,

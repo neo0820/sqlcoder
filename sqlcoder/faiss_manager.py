@@ -3,8 +3,11 @@ import numpy as np
 import os
 from sklearn.feature_extraction.text import TfidfVectorizer
 
+# 定义向量模型的维度 原始模型是fp16 是768维 # 8b的量化模型是384
+vector_dim = 768
+
 class FaissManager:
-    def __init__(self, base_dir: str, dim: int = 768):
+    def __init__(self, base_dir: str, dim: int = vector_dim):
         """
         初始化FAISS管理类。
         :param base_dir: 索引文件存储的基础目录。
@@ -80,9 +83,10 @@ class FaissManager:
         # print("vectors shape after reshape:", vectors.shape)
 
 
-        # 确保向量维度正确并转换为 float32 类型
-        if vectors.shape[1] != 768:
-            raise ValueError(f"向量维度不匹配！索引需要 768 维，实际为 {vectors.shape[1]} 维。")
+        # 确保向量维度正确并转换为 float32 类型   原始模型是fp16 是768维 # 8b的量化模型是384
+        # if vectors.shape[1] != 768:
+        if vectors.shape[1] != vector_dim:
+            raise ValueError(f"向量维度不匹配！索引需要 384 维，实际为 {vectors.shape[1]} 维。")
         
         vectors = vectors.astype(np.float32)  # 确保是 float32 类型
 

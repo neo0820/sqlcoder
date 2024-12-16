@@ -40,7 +40,7 @@ def serve_webserver():
     ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
     public_url = ngrok.connect(port)
     print(f"Ngrok Tunnel URL: {public_url}")
-    uvicorn.run(app, host="localhost", port=1235)
+    uvicorn.run(app, host="192.168.0.248", port=1235)
 
 
 def serve_static():
@@ -70,12 +70,14 @@ def launch():
     defog_path = os.path.join(home_dir, ".defog")
     if not os.popen("lspci | grep -i nvidia").read():
         # not a GPU machine
-        filepath = os.path.join(home_dir, ".defog", "sqlcoder-7b-q5_k_m.gguf")
+        filepath = os.path.join(home_dir, ".defog", "llama-3-sqlcoder-8b.Q8_0.gguf")
+        #print("====执行路径====")
+        print(filepath)
         if not os.path.exists(filepath):
             print(
-                "Downloading the SQLCoder-7b-2 GGUF file. This is a ~5GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
+                "Downloading the llama-3-sqlcoder-8b file. This is a ~5GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
             )
-            hf_hub_download(repo_id="defog/sqlcoder-7b-2", filename="sqlcoder-7b-q5_k_m.gguf", local_dir=defog_path)
+            hf_hub_download(repo_id="QuantFactory/llama-3-sqlcoder-8b-GGUF", filename="llama-3-sqlcoder-8b.Q8_0.gguf", local_dir=defog_path)
     else:
         # check if the huggingface model is already downloaded from hub. If not, download it
         from huggingface_hub import snapshot_download
