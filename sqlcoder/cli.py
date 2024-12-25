@@ -3,7 +3,7 @@ import sys
 import sqlcoder
 import subprocess
 from huggingface_hub import snapshot_download, hf_hub_download
-
+import asyncio
 
 USAGE_STRING = """
 Usage: sqlcoder <command>
@@ -21,7 +21,7 @@ def main():
         print(USAGE_STRING)
         sys.exit(1)
     if sys.argv[1] == "launch":
-        launch()
+        asyncio.run(launch())  # 在这里使用 asyncio.run 来运行异步函数
     elif sys.argv[1] == "serve-webserver":
         serve_webserver()
     elif sys.argv[1] == "serve-static":
@@ -37,9 +37,10 @@ def serve_webserver():
 
     port = 1235
     # 创建 ngrok 隧道
-    ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
-    public_url = ngrok.connect(port)
-    print(f"Ngrok Tunnel URL: {public_url}")
+    # ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
+    # public_url = ngrok.connect(port)
+    # print(f"Ngrok Tunnel URL: {public_url}")
+
     uvicorn.run(app, host="192.168.0.248", port=1235)
 
 
@@ -65,13 +66,26 @@ def serve_static():
         httpd.extension_maps = {".html": "text/html", "": "text/html"}
         httpd.serve_forever()
 
-def launch():
+async def start_serve_static():
+    static_process = subprocess.Popen(["sqlcoder", "serve-static"])
+    print("Static server started.")
+    await asyncio.sleep(1)  # 或者根据实际情况调整
+    return static_process
+
+async def start_serve_webserver():
+    webserver_process = subprocess.Popen(["sqlcoder", "serve-webserver"])
+    print("Webserver started.")
+    await asyncio.sleep(1)
+    return webserver_process
+
+
+async def launch():
     home_dir = os.path.expanduser("~")
     defog_path = os.path.join(home_dir, ".defog")
     if not os.popen("lspci | grep -i nvidia").read():
         # not a GPU machine
         filepath = os.path.join(home_dir, ".defog", "llama-3-sqlcoder-8b.Q8_0.gguf")
-        #print("====执行路径====")
+        print("====执行路径====")
         print(filepath)
         if not os.path.exists(filepath):
             print(
@@ -86,15 +100,20 @@ def launch():
         )
         _ = snapshot_download("defog/llama-3-sqlcoder-8b")
     
-    print("Starting SQLCoder server...")
-    static_process = subprocess.Popen(["sqlcoder", "serve-static"])
-    
-    print("Serving static server...")
-    webserver_process = subprocess.Popen(["sqlcoder", "serve-webserver"])
+    # print("Starting SQLCoder server...")
+    # static_process = subprocess.Popen(["sqlcoder", "serve-static"])
+    #
+    # print("Serving static server...")
+    # webserver_process = subprocess.Popen(["sqlcoder", "serve-webserver"])
+
+    # 启动静态和 Web 服务器的异步任务
+    static_process = await start_serve_static()
+    webserver_process = await start_serve_webserver()
+
     print("Press Ctrl+C to exit.")
     try:
         while True:
-            pass
+            await asyncio.sleep(1)  # 主线程保持活跃
     except KeyboardInterrupt:
         print("Exiting...")
         static_process.terminate()
@@ -102,4 +121,5 @@ def launch():
         sys.exit(0)
 
 if __name__ == "__main__":
-    main()
+    # main()
+    asyncio.run(main())
