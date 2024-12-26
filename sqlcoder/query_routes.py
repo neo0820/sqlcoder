@@ -25,10 +25,12 @@ from sqlcoder.query_utils import (
     get_query_by_nl,
     get_query_by_nl_step1,
     get_query_by_nl_step2,
+    get_query_by_nl_step3,
+    get_query_by_nl_step4,
     get_device_type,
     convert_sql,
     load_sql_model,
-    generate_function
+    generate_function, send_message_to_ollama, chat_ollama
 )
 
 router = APIRouter()
@@ -36,7 +38,7 @@ router = APIRouter()
 home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
 
-# generate_function = load_sql_model()
+generate_function = load_sql_model()
 
 @router.post("/get_device_type")
 async def get_device_type():
@@ -73,10 +75,24 @@ async def query_step1(request: Request):
 
     return get_query_by_nl_step1(question,top_k,distance_threshold)
 
-
+import asyncio
 @router.post("/query_step2")
 async def query_step2(request: Request):
     params = await request.json()
-    return get_query_by_nl_step2(params)
+    return await get_query_by_nl_step2(params)
 
+@router.post("/query_step3")
+async def query_step3(request: Request):
+    params = await request.json()
+    return get_query_by_nl_step3(params)
+
+@router.post("/query_step4")
+async def query_step4(request: Request):
+    params = await request.json()
+    return get_query_by_nl_step4(params)
+
+@router.post("/query_step5")
+async def query_step5(request: Request):
+    params = await request.json()
+    return send_message_to_ollama("今天天气怎么样")
 
