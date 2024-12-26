@@ -8,6 +8,9 @@ from defog import Defog
 from defog.query import execute_query_once
 from huggingface_hub import hf_hub_download
 
+from sqlcoder.env_utils import ollama_ip, ollama_port, model_sql_handler
+from sqlcoder.ollama_utils import generate_response_url, chat_with_model_url, call_ollama_generate_response_stream, \
+    call_ollama_generate_response
 from sqlcoder.vector_utils import (
     search_vectorize,
     search_vectorize_2_table,
@@ -165,33 +168,6 @@ def get_query_by_nl_step1(question, top_k, distance_threshold):
 
 import requests
 
-import aiohttp
-import asyncio
-
-
-async def call_ollama_async(prompt):
-    url = "http://192.168.0.248:11434/api/generate"
-    payload = {
-        "model": "mannix/defog-llama3-sqlcoder-8b:latest",
-        "prompt": prompt
-    }
-    headers = {"Content-Type": "application/json"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload, headers=headers) as response:
-            # 逐步处理流式响应
-            response_text = ""
-            async for chunk in response.content.iter_any():
-                response_text += chunk.decode('utf-8')
-                print("Partial response:", response_text)  # 打印每部分响应
-
-                # 当完整响应到达时，处理结果
-                if '"done": true' in response_text:
-                    print("Final response received")
-                    break
-
-            return response_text
-
 
 async def get_query_by_nl_step2(vectorize_table_json):
     question = vectorize_table_json.get("question")
@@ -201,6 +177,8 @@ async def get_query_by_nl_step2(vectorize_table_json):
     table_2_ddl_json = search_table_2_ddl(table_names)
     ddl = table_2_ddl_json.get("ddl")
 
+    model = model_sql_handler
+
     prompt = f"""### Task
 Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
 
@@ -215,41 +193,24 @@ The query will run on a database with the following schema:
 Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
 [SQL]
 """
+    header = {"Content-Type": "application/json"}
 
-    # # Call Ollama API to get the SQL query
-    # url = "http://192.168.0.248:11434/api/generate"
-    # payload = {
-    #     "model": "mannix/defog-llama3-sqlcoder-8b:latest",
-    #     "prompt": prompt
-    # }
-    # headers = {
-    #     "Content-Type": "application/json"
-    # }
-    # response = requests.post(url, json=payload, headers=headers)
-    # #
-    # # return response.text
-    # # 获取response.text并替换换行符
-    # response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
+    response = await call_ollama_generate_response_stream(model, prompt, header)
 
-    response = await call_ollama_async(prompt)
-    # return response
+
+    # 对返回的流文本进行合并处理。
     response_text = response.replace("\n", "").replace("\r", "").replace("}", "},")
-
-
     response_text = "["+response_text +"]"
     response_text = response_text.replace(",]", "]")
     # 将替换后的文本解析成JSON
     try:
         response_json = json.loads(response_text)
-
         # 提取并合并所有的 'response' 字段
         response_contents = [
             item["response"] for item in response_json if "response" in item
         ]
-
         # 合并所有的response内容成一个字符串
         merged_response = "".join(response_contents)
-
         # 返回合并后的响应
         return {"sql": merged_response}
     except json.JSONDecodeError:
@@ -258,7 +219,7 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
         print(f"KeyError: {e}")
 
 
-def get_query_by_nl_step3(vectorize_table_json):
+async def get_query_by_nl_step3(vectorize_table_json):
     question = vectorize_table_json.get("question")
     table_names = vectorize_table_json.get("table_names")
     table_descriptions = vectorize_table_json.get("table_descriptions")
@@ -266,6 +227,8 @@ def get_query_by_nl_step3(vectorize_table_json):
     table_2_ddl_json = search_table_2_ddl(table_names)
     ddl = table_2_ddl_json.get("ddl")
 
+    model = model_sql_handler
+
     prompt = f"""### Task
 Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
 
@@ -280,41 +243,12 @@ The query will run on a database with the following schema:
 Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
 [SQL]
 """
+    header = {"Content-Type": "application/json"}
 
-    # Call Ollama API to get the SQL query
-    url = "http://192.168.0.207:11434/api/generate"
-    payload = {
-        "model": "mannix/defog-llama3-sqlcoder-8b:latest",
-        "prompt": prompt
-    }
-    headers = {
-        "Content-Type": "application/json"
-    }
-    response = requests.post(url, json=payload, headers=headers)
-    #
-    # return response.text
-    # 获取response.text并替换换行符
-    response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
-    response_text = "[" + response_text + "]"
-    response_text = response_text.replace(",]", "]")
-    # 将替换后的文本解析成JSON
-    try:
-        response_json = json.loads(response_text)
+    response = await call_ollama_generate_response(model, prompt, header)
+    print(response)
+    return {"sql": response}
 
-        # 提取并合并所有的 'response' 字段
-        response_contents = [
-            item["response"] for item in response_json if "response" in item
-        ]
-
-        # 合并所有的response内容成一个字符串
-        merged_response = "".join(response_contents)
-
-        # 返回合并后的响应
-        return {"sql": merged_response}
-    except json.JSONDecodeError:
-        print("Failed to decode JSON")
-    except KeyError as e:
-        print(f"KeyError: {e}")
 
 
 def get_query_by_nl_test(question):
@@ -397,7 +331,7 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
 """
 
     # Call Ollama API to get the SQL query
-    url = "http://192.168.0.248:11434/api/generate"
+    url = generate_response_url
     payload = {
         "model": "mannix/defog-llama3-sqlcoder-8b:latest",
         "prompt": prompt
@@ -438,7 +372,8 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
 
 
 def send_message_to_ollama(message):
-    url = "http://192.168.0.248:11434/api/chat"
+    print(f"chat_with_model_url:{chat_with_model_url}")
+    url = chat_with_model_url
     payload = {
         "model": "Qwen2.5:7b",
         "messages": [{"role": "user", "content": message}]

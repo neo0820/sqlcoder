@@ -84,7 +84,7 @@ async def query_step2(request: Request):
 @router.post("/query_step3")
 async def query_step3(request: Request):
     params = await request.json()
-    return get_query_by_nl_step3(params)
+    return await get_query_by_nl_step3(params)
 
 @router.post("/query_step4")
 async def query_step4(request: Request):

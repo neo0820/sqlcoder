@@ -5,6 +5,8 @@ import subprocess
 from huggingface_hub import snapshot_download, hf_hub_download
 import asyncio
 
+from sqlcoder.env_utils import server_ip, server_port
+
 USAGE_STRING = """
 Usage: sqlcoder <command>
 
@@ -35,13 +37,13 @@ def serve_webserver():
     from pyngrok import ngrok
     import uvicorn
 
-    port = 1235
+    # port = 1235
     # 创建 ngrok 隧道
     # ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
     # public_url = ngrok.connect(port)
     # print(f"Ngrok Tunnel URL: {public_url}")
 
-    uvicorn.run(app, host="192.168.0.248", port=1235)
+    uvicorn.run(app, host=server_ip, port=server_port)
 
 
 def serve_static():
