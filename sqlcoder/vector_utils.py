@@ -165,10 +165,18 @@ def search_vectorize(search_text: str, top_k: int = 5, distance_threshold: float
     }
 
 
+import re
+
 #把查找先输出成查找表格清单
 def search_vectorize_2_table(search_text: str, top_k: int = 5, distance_threshold: float = 0.5):
+    # 原始查询如下，按分号分隔；只取第1部分进行向量查询
+    # 查询字典分类关联字典数据;显示字典分类的编码、名称，字典数据的编码名称;并且按照字典分类、字典数据的顺序进行排序
+
+    # 使用正则表达式分割字符串，匹配中文分号（；）和英文分号（;）
+    parts = re.split(r'[;；]', search_text)
+
     #获取查找值
-    search_vectorize_value = search_vectorize(search_text, top_k, distance_threshold)
+    search_vectorize_value = search_vectorize(parts[0], top_k, distance_threshold)
     #获取元数据json表格
     try:
         defog = Defog()

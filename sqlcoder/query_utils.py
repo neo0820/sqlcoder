@@ -8,7 +8,7 @@ from defog import Defog
 from defog.query import execute_query_once
 from huggingface_hub import hf_hub_download
 
-from sqlcoder.env_utils import ollama_ip, ollama_port, model_sql_handler
+from sqlcoder.env_utils import proxy_ip, proxy_port, model_sql_handler, model_qwen25_handler
 from sqlcoder.ollama_utils import generate_response_url, chat_with_model_url, call_ollama_generate_response_stream, \
     call_ollama_generate_response
 from sqlcoder.vector_utils import (
@@ -191,6 +191,7 @@ The query will run on a database with the following schema:
 
 ### Answer
 Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+Add aliases to the fields after SQL query, where the aliases are derived from the COMMENT in the Database Schema
 [SQL]
 """
     header = {"Content-Type": "application/json"}
@@ -212,7 +213,7 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
         # 合并所有的response内容成一个字符串
         merged_response = "".join(response_contents)
         # 返回合并后的响应
-        return {"sql": merged_response}
+        return {"sql": merged_response, "table_names": table_names}
     except json.JSONDecodeError:
         print("Failed to decode JSON")
     except KeyError as e:
@@ -241,14 +242,54 @@ The query will run on a database with the following schema:
 
 ### Answer
 Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+Add aliases to the fields after SQL query, where the aliases are derived from the COMMENT in the Database Schema
 [SQL]
 """
     header = {"Content-Type": "application/json"}
 
     response = await call_ollama_generate_response(model, prompt, header)
     print(response)
-    return {"sql": response}
+    return {"sql": response, "table_names": table_names}
 
+
+async def get_query_atfer_alias(query_json):
+    table_names = query_json.get("table_names")
+    table_2_ddl_json = search_table_2_ddl(table_names)
+    ddl = table_2_ddl_json.get("ddl")
+
+    sql = query_json.get("sql")
+
+    model = model_qwen25_handler
+
+    prompt = f"""表的DDL是这样子的
+    {ddl}
+    
+    然后sql查询是这样子的
+    {sql}
+    
+    把上面SQL查询的字段加上别名，别名的来源是DDL中的COMMENT，并显示出来，注意：以SQL中的字段为准，别多选多余的字段 [sql]
+"""
+    header = {"Content-Type": "application/json"}
+
+    response = await call_ollama_generate_response(model, prompt, header)
+    print(response)
+    return {"sql": get_sql_ony(response)}
+
+
+import re
+def get_sql_ony(response):
+    # 使用正则表达式匹配 SQL 语句
+    sql_pattern = re.compile(r'```sql\n(.*?)\n```', re.DOTALL)
+
+    # 搜索并提取 SQL 语句
+    match = sql_pattern.search(response)
+    if match:
+        sql_query = match.group(1).strip()
+        print("抽取出来的sql如下：")
+        print(sql_query)
+        return sql_query
+    else:
+        print("未找到SQL语句")
 
 
 def get_query_by_nl_test(question):

@@ -16,7 +16,9 @@ match os.getenv("ENVIRONMENT"):
 server_ip = os.getenv("SERVER_IP")
 server_port = os.getenv("SERVER_PORT")
 
-ollama_ip = os.getenv("OLLAMA_IP")
-ollama_port = os.getenv("OLLAMA_PORT")
+proxy_protocol = os.getenv("PROXY_PROTOCOL")
+proxy_ip = os.getenv("PROXY_IP")
+proxy_port = os.getenv("PROXY_PORT")
 
 model_sql_handler = os.getenv("MODEL_SQL_HANDLER")
+model_qwen25_handler = os.getenv("MODEL_QWeb25_HANDLER")

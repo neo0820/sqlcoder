@@ -30,7 +30,7 @@ from sqlcoder.query_utils import (
     get_device_type,
     convert_sql,
     load_sql_model,
-    generate_function, send_message_to_ollama, chat_ollama
+    generate_function, send_message_to_ollama, chat_ollama, get_query_atfer_alias
 )
 
 router = APIRouter()
@@ -96,3 +96,8 @@ async def query_step5(request: Request):
     params = await request.json()
     return send_message_to_ollama("今天天气怎么样")
 
+
+@router.post("/query_step6")
+async def query_step6(request: Request):
+    params = await request.json()
+    return await get_query_atfer_alias(params)

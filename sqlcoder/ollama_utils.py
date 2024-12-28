@@ -1,7 +1,7 @@
-from sqlcoder.env_utils import ollama_ip, ollama_port
+from sqlcoder.env_utils import proxy_ip, proxy_port, proxy_protocol
 
-generate_response_url = f"http://{ollama_ip}:{ollama_port}/api/generate"
-chat_with_model_url = f"http://{ollama_ip}:{ollama_port}/api/chat"
+generate_response_url = f"{proxy_protocol}://{proxy_ip}:{proxy_port}/api/generate"
+chat_with_model_url = f"{proxy_protocol}://{proxy_ip}:{proxy_port}/api/chat"
 
 import aiohttp
 import json
