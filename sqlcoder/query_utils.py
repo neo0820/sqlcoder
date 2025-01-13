@@ -41,7 +41,8 @@ def get_device_type():
 
 # 加载SQL生成模型
 def load_sql_model():
-    if device_type == "gpu":
+    # if device_type == "gpu":
+    if device_type == "cpu":
         import torch
         from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 
@@ -77,9 +78,14 @@ def load_sql_model():
                             local_dir=defog_path)
 
         if device_type == "apple_silicon":
+            print("Using Apple GPU")
             llm = Llama(model_path=filepath, n_gpu_layers=-1, n_ctx=4096)
         else:
-            llm = Llama(model_path=filepath, n_ctx=4096)
+            # 未显式用GPU，则用CPU
+            # llm = Llama(model_path=filepath, n_ctx=4096)
+            # 显式指定使用 GPU
+            print("Using NVIDIA GPU")
+            llm = Llama(model_path=filepath, n_ctx=4096, n_gpu_layers=-1)
 
         return lambda prompt: llm(
             prompt,
@@ -113,87 +119,9 @@ def get_query_by_nl_step1(question, top_k, distance_threshold):
     vectorize_table_json["question"] = question
     return vectorize_table_json
 
-#
-#
-# def get_query_by_nl_step2(vectorize_table_json):
-#     question = vectorize_table_json.get("question")
-#     table_names = vectorize_table_json.get("table_names")
-#     table_descriptions = vectorize_table_json.get("table_descriptions")
-#
-#     table_2_ddl_json = search_table_2_ddl(table_names)
-#     ddl = table_2_ddl_json.get("ddl")
-#
-#     prompt = f"""### Task
-# Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
-#
-# ### Instructions
-# - If you cannot answer the question with the available database schema, return 'I do not know'
-#
-# ### Database Schema
-# The query will run on a database with the following schema:
-# {ddl}
-#
-# ### Answer
-# Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
-# [SQL]
-# """
-#     query = generate_function(prompt)
-#     defog = Defog()
-#     print(f"defog.db_type: {defog.db_type}")
-#
-#     db_type = defog.db_type or "postgres"
-#     db_creds = defog.db_creds
-#     query = convert_sql(query,source_db="postgres", target_db=db_type)
-#
-#     # columns, data = execute_query_once(db_type, db_creds, query)
-#
-#     return {
-#
-#         "table_descriptions": table_descriptions,
-#         "table_names":  table_names,
-#         #"ddl": ddl,
-#         "prompt": prompt,
-#         "sql": query,
-#         # "columns": columns,
-#         # "data": data,
-#         #"ran_successfully": True,
-#
-#         "db_type": db_type
-#     }
 
 
-
-import requests
-
-import aiohttp
-import asyncio
-
-
-async def call_ollama_async(prompt):
-    url = "http://192.168.0.248:11434/api/generate"
-    payload = {
-        "model": "mannix/defog-llama3-sqlcoder-8b:latest",
-        "prompt": prompt
-    }
-    headers = {"Content-Type": "application/json"}
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, json=payload, headers=headers) as response:
-            # 逐步处理流式响应
-            response_text = ""
-            async for chunk in response.content.iter_any():
-                response_text += chunk.decode('utf-8')
-                print("Partial response:", response_text)  # 打印每部分响应
-
-                # 当完整响应到达时，处理结果
-                if '"done": true' in response_text:
-                    print("Final response received")
-                    break
-
-            return response_text
-
-
-async def get_query_by_nl_step2(vectorize_table_json):
+def get_query_by_nl_step2(vectorize_table_json):
     question = vectorize_table_json.get("question")
     table_names = vectorize_table_json.get("table_names")
     table_descriptions = vectorize_table_json.get("table_descriptions")
@@ -201,128 +129,6 @@ async def get_query_by_nl_step2(vectorize_table_json):
     table_2_ddl_json = search_table_2_ddl(table_names)
     ddl = table_2_ddl_json.get("ddl")
 
-    prompt = f"""### Task
-Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
-
-### Instructions
-- If you cannot answer the question with the available database schema, return 'I do not know'
-
-### Database Schema
-The query will run on a database with the following schema:
-{ddl}
-
-### Answer
-Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
-[SQL]
-"""
-
-    # # Call Ollama API to get the SQL query
-    # url = "http://192.168.0.248:11434/api/generate"
-    # payload = {
-    #     "model": "mannix/defog-llama3-sqlcoder-8b:latest",
-    #     "prompt": prompt
-    # }
-    # headers = {
-    #     "Content-Type": "application/json"
-    # }
-    # response = requests.post(url, json=payload, headers=headers)
-    # #
-    # # return response.text
-    # # 获取response.text并替换换行符
-    # response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
-
-    response = await call_ollama_async(prompt)
-    # return response
-    response_text = response.replace("\n", "").replace("\r", "").replace("}", "},")
-
-
-    response_text = "["+response_text +"]"
-    response_text = response_text.replace(",]", "]")
-    # 将替换后的文本解析成JSON
-    try:
-        response_json = json.loads(response_text)
-
-        # 提取并合并所有的 'response' 字段
-        response_contents = [
-            item["response"] for item in response_json if "response" in item
-        ]
-
-        # 合并所有的response内容成一个字符串
-        merged_response = "".join(response_contents)
-
-        # 返回合并后的响应
-        return {"sql": merged_response}
-    except json.JSONDecodeError:
-        print("Failed to decode JSON")
-    except KeyError as e:
-        print(f"KeyError: {e}")
-
-
-def get_query_by_nl_step3(vectorize_table_json):
-    question = vectorize_table_json.get("question")
-    table_names = vectorize_table_json.get("table_names")
-    table_descriptions = vectorize_table_json.get("table_descriptions")
-
-    table_2_ddl_json = search_table_2_ddl(table_names)
-    ddl = table_2_ddl_json.get("ddl")
-
-    prompt = f"""### Task
-Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
-
-### Instructions
-- If you cannot answer the question with the available database schema, return 'I do not know'
-
-### Database Schema
-The query will run on a database with the following schema:
-{ddl}
-
-### Answer
-Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
-[SQL]
-"""
-
-    # Call Ollama API to get the SQL query
-    url = "http://192.168.0.207:11434/api/generate"
-    payload = {
-        "model": "mannix/defog-llama3-sqlcoder-8b:latest",
-        "prompt": prompt
-    }
-    headers = {
-        "Content-Type": "application/json"
-    }
-    response = requests.post(url, json=payload, headers=headers)
-    #
-    # return response.text
-    # 获取response.text并替换换行符
-    response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
-    response_text = "[" + response_text + "]"
-    response_text = response_text.replace(",]", "]")
-    # 将替换后的文本解析成JSON
-    try:
-        response_json = json.loads(response_text)
-
-        # 提取并合并所有的 'response' 字段
-        response_contents = [
-            item["response"] for item in response_json if "response" in item
-        ]
-
-        # 合并所有的response内容成一个字符串
-        merged_response = "".join(response_contents)
-
-        # 返回合并后的响应
-        return {"sql": merged_response}
-    except json.JSONDecodeError:
-        print("Failed to decode JSON")
-    except KeyError as e:
-        print(f"KeyError: {e}")
-
-
-def get_query_by_nl_test(question):
-    import torch
-    torch.cuda.empty_cache()
-    with open(os.path.join(defog_path, "metadata.json"), "r") as f:
-        metadata = json.load(f)
-    ddl = convert_metadata_to_ddl(metadata)
     prompt = f"""### Task
 Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
 
@@ -343,18 +149,218 @@ Given the database schema, here is the SQL query that answers [QUESTION]{questio
 
     db_type = defog.db_type or "postgres"
     db_creds = defog.db_creds
-    query = convert_sql(query, source_db="postgres", target_db=db_type)
-    columns, data = execute_query_once(db_type, db_creds, query)
+    query = convert_sql(query,source_db="postgres", target_db=db_type)
+
+    # columns, data = execute_query_once(db_type, db_creds, query)
 
     return {
-        "ddl": ddl,
+
+        "table_descriptions": table_descriptions,
+        "table_names":  table_names,
+        #"ddl": ddl,
         "prompt": prompt,
-        "query_generated": query,
-        "columns": columns,
-        "data": data,
-        "ran_successfully": True,
+        "sql": query,
+        # "columns": columns,
+        # "data": data,
+        #"ran_successfully": True,
+
         "db_type": db_type
     }
+
+
+
+import requests
+
+import aiohttp
+import asyncio
+
+
+# async def call_ollama_async(prompt):
+#     url = "http://127.0.0.1:11434/api/generate"
+#     payload = {
+#         "model": "mannix/defog-llama3-sqlcoder-8b:latest",
+#         "prompt": prompt
+#     }
+#     headers = {"Content-Type": "application/json"}
+
+#     async with aiohttp.ClientSession() as session:
+#         async with session.post(url, json=payload, headers=headers) as response:
+#             # 逐步处理流式响应
+#             response_text = ""
+#             async for chunk in response.content.iter_any():
+#                 response_text += chunk.decode('utf-8')
+#                 print("Partial response:", response_text)  # 打印每部分响应
+
+#                 # 当完整响应到达时，处理结果
+#                 if '"done": true' in response_text:
+#                     print("Final response received")
+#                     break
+
+#             return response_text
+
+
+# async def get_query_by_nl_step2(vectorize_table_json):
+#     question = vectorize_table_json.get("question")
+#     table_names = vectorize_table_json.get("table_names")
+#     table_descriptions = vectorize_table_json.get("table_descriptions")
+
+#     table_2_ddl_json = search_table_2_ddl(table_names)
+#     ddl = table_2_ddl_json.get("ddl")
+
+#     prompt = f"""### Task
+# Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
+
+# ### Instructions
+# - If you cannot answer the question with the available database schema, return 'I do not know'
+
+# ### Database Schema
+# The query will run on a database with the following schema:
+# {ddl}
+
+# ### Answer
+# Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+# [SQL]
+# """
+
+#     # # Call Ollama API to get the SQL query
+#     # url = "http://192.168.0.248:11434/api/generate"
+#     # payload = {
+#     #     "model": "mannix/defog-llama3-sqlcoder-8b:latest",
+#     #     "prompt": prompt
+#     # }
+#     # headers = {
+#     #     "Content-Type": "application/json"
+#     # }
+#     # response = requests.post(url, json=payload, headers=headers)
+#     # #
+#     # # return response.text
+#     # # 获取response.text并替换换行符
+#     # response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
+
+#     response = await call_ollama_async(prompt)
+#     # return response
+#     response_text = response.replace("\n", "").replace("\r", "").replace("}", "},")
+
+
+#     response_text = "["+response_text +"]"
+#     response_text = response_text.replace(",]", "]")
+#     # 将替换后的文本解析成JSON
+#     try:
+#         response_json = json.loads(response_text)
+
+#         # 提取并合并所有的 'response' 字段
+#         response_contents = [
+#             item["response"] for item in response_json if "response" in item
+#         ]
+
+#         # 合并所有的response内容成一个字符串
+#         merged_response = "".join(response_contents)
+
+#         # 返回合并后的响应
+#         return {"sql": merged_response}
+#     except json.JSONDecodeError:
+#         print("Failed to decode JSON")
+#     except KeyError as e:
+#         print(f"KeyError: {e}")
+
+
+# def get_query_by_nl_step3(vectorize_table_json):
+#     question = vectorize_table_json.get("question")
+#     table_names = vectorize_table_json.get("table_names")
+#     table_descriptions = vectorize_table_json.get("table_descriptions")
+
+#     table_2_ddl_json = search_table_2_ddl(table_names)
+#     ddl = table_2_ddl_json.get("ddl")
+
+#     prompt = f"""### Task
+# Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
+
+# ### Instructions
+# - If you cannot answer the question with the available database schema, return 'I do not know'
+
+# ### Database Schema
+# The query will run on a database with the following schema:
+# {ddl}
+
+# ### Answer
+# Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+# [SQL]
+# """
+
+#     # Call Ollama API to get the SQL query
+#     url = "http://192.168.0.207:11434/api/generate"
+#     payload = {
+#         "model": "mannix/defog-llama3-sqlcoder-8b:latest",
+#         "prompt": prompt
+#     }
+#     headers = {
+#         "Content-Type": "application/json"
+#     }
+#     response = requests.post(url, json=payload, headers=headers)
+#     #
+#     # return response.text
+#     # 获取response.text并替换换行符
+#     response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
+#     response_text = "[" + response_text + "]"
+#     response_text = response_text.replace(",]", "]")
+#     # 将替换后的文本解析成JSON
+#     try:
+#         response_json = json.loads(response_text)
+
+#         # 提取并合并所有的 'response' 字段
+#         response_contents = [
+#             item["response"] for item in response_json if "response" in item
+#         ]
+
+#         # 合并所有的response内容成一个字符串
+#         merged_response = "".join(response_contents)
+
+#         # 返回合并后的响应
+#         return {"sql": merged_response}
+#     except json.JSONDecodeError:
+#         print("Failed to decode JSON")
+#     except KeyError as e:
+#         print(f"KeyError: {e}")
+
+
+# def get_query_by_nl_test(question):
+#     import torch
+#     torch.cuda.empty_cache()
+#     with open(os.path.join(defog_path, "metadata.json"), "r") as f:
+#         metadata = json.load(f)
+#     ddl = convert_metadata_to_ddl(metadata)
+#     prompt = f"""### Task
+# Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
+
+# ### Instructions
+# - If you cannot answer the question with the available database schema, return 'I do not know'
+
+# ### Database Schema
+# The query will run on a database with the following schema:
+# {ddl}
+
+# ### Answer
+# Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+# [SQL]
+# """
+#     query = generate_function(prompt)
+#     defog = Defog()
+#     print(f"defog.db_type: {defog.db_type}")
+
+#     db_type = defog.db_type or "postgres"
+#     db_creds = defog.db_creds
+#     query = convert_sql(query, source_db="postgres", target_db=db_type)
+#     columns, data = execute_query_once(db_type, db_creds, query)
+
+#     return {
+#         "ddl": ddl,
+#         "prompt": prompt,
+#         "query_generated": query,
+#         "columns": columns,
+#         "data": data,
+#         "ran_successfully": True,
+#         "db_type": db_type
+#     }
 
 
 # 定义一个函数，用于将 SQL 查询从一种数据库类型转换为另一种
@@ -373,72 +379,72 @@ def convert_sql(query: str, source_db: str, target_db: str) -> str:
 
 
 
-def get_query_by_nl_step4(vectorize_table_json):
-    question = vectorize_table_json.get("question")
-    table_names = vectorize_table_json.get("table_names")
-    table_descriptions = vectorize_table_json.get("table_descriptions")
+# def get_query_by_nl_step4(vectorize_table_json):
+#     question = vectorize_table_json.get("question")
+#     table_names = vectorize_table_json.get("table_names")
+#     table_descriptions = vectorize_table_json.get("table_descriptions")
 
-    table_2_ddl_json = search_table_2_ddl(table_names)
-    ddl = table_2_ddl_json.get("ddl")
+#     table_2_ddl_json = search_table_2_ddl(table_names)
+#     ddl = table_2_ddl_json.get("ddl")
 
-    prompt = f"""### Task
-Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
+#     prompt = f"""### Task
+# Generate a SQL query to answer [QUESTION]{question}[/QUESTION]
 
-### Instructions
-- If you cannot answer the question with the available database schema, return 'I do not know'
+# ### Instructions
+# - If you cannot answer the question with the available database schema, return 'I do not know'
 
-### Database Schema
-The query will run on a database with the following schema:
-{ddl}
+# ### Database Schema
+# The query will run on a database with the following schema:
+# {ddl}
 
-### Answer
-Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
-[SQL]
-"""
+# ### Answer
+# Given the database schema, here is the SQL query that answers [QUESTION]{question}[/QUESTION]
+# [SQL]
+# """
 
-    # Call Ollama API to get the SQL query
-    url = "http://192.168.0.248:11434/api/generate"
-    payload = {
-        "model": "mannix/defog-llama3-sqlcoder-8b:latest",
-        "prompt": prompt
-    }
-    headers = {
-        "Content-Type": "application/json"
-    }
-    response = requests.post(url, json=payload, headers=headers)
+#     # Call Ollama API to get the SQL query
+#     url = "http://127.0.0.1:11434/api/generate"
+#     payload = {
+#         "model": "mannix/defog-llama3-sqlcoder-8b:latest",
+#         "prompt": prompt
+#     }
+#     headers = {
+#         "Content-Type": "application/json"
+#     }
+#     response = requests.post(url, json=payload, headers=headers)
 
-    if response.status_code == 200:
-        #
-        # return response.text
-        # 获取response.text并替换换行符
-        response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
+#     if response.status_code == 200:
+#         #
+#         # return response.text
+#         # 获取response.text并替换换行符
+#         response_text = response.text.replace("\n", "").replace("\r", "").replace("}", "},")
 
-        response_text = "["+response_text +"]"
-        response_text = response_text.replace(",]", "]")
-        # 将替换后的文本解析成JSON
-        try:
-            response_json = json.loads(response_text)
+#         response_text = "["+response_text +"]"
+#         response_text = response_text.replace(",]", "]")
+#         # 将替换后的文本解析成JSON
+#         try:
+#             response_json = json.loads(response_text)
 
-            # 提取并合并所有的 'response' 字段
-            response_contents = [
-                item["response"] for item in response_json if "response" in item
-            ]
+#             # 提取并合并所有的 'response' 字段
+#             response_contents = [
+#                 item["response"] for item in response_json if "response" in item
+#             ]
 
-            # 合并所有的response内容成一个字符串
-            merged_response = "".join(response_contents)
+#             # 合并所有的response内容成一个字符串
+#             merged_response = "".join(response_contents)
 
-            # 返回合并后的响应
-            return {"sql": merged_response}
-        except json.JSONDecodeError:
-            print("Failed to decode JSON")
-        except KeyError as e:
-            print(f"KeyError: {e}")
-    else:
-        return {"sql": response.text}
+#             # 返回合并后的响应
+#             return {"sql": merged_response}
+#         except json.JSONDecodeError:
+#             print("Failed to decode JSON")
+#         except KeyError as e:
+#             print(f"KeyError: {e}")
+#     else:
+#         return {"sql": response.text}
 
 
 def send_message_to_ollama(message):
-    url = "http://192.168.0.248:11434/api/chat"
+    url = "http://127.0.0.1:11434/api/chat"
     payload = {
         "model": "Qwen2.5:7b",
         "messages": [{"role": "user", "content": message}]

@@ -36,12 +36,13 @@ def serve_webserver():
     import uvicorn
 
     port = 1235
+    
     # 创建 ngrok 隧道
-    # ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
-    # public_url = ngrok.connect(port)
-    # print(f"Ngrok Tunnel URL: {public_url}")
+    ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
+    public_url = ngrok.connect(port)
+    print(f"Ngrok Tunnel URL: {public_url}")
 
-    uvicorn.run(app, host="192.168.0.248", port=1235)
+    uvicorn.run(app, host="127.0.0.1", port=1235)
 
 
 def serve_static():
@@ -81,7 +82,10 @@ async def start_serve_webserver():
 
 async def launch():
     home_dir = os.path.expanduser("~")
+    print(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~home_dir~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: {home_dir}")
     defog_path = os.path.join(home_dir, ".defog")
+    print(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~defog_path~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: {defog_path}")
+
     if not os.popen("lspci | grep -i nvidia").read():
         # not a GPU machine
         filepath = os.path.join(home_dir, ".defog", "llama-3-sqlcoder-8b.Q8_0.gguf")

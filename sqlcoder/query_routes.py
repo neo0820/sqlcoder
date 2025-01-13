@@ -21,12 +21,12 @@ from sqlcoder.metadata_utils import (
 )
 
 from sqlcoder.query_utils import (
-    get_query_by_nl_test,
+    # get_query_by_nl_test,
     get_query_by_nl,
     get_query_by_nl_step1,
     get_query_by_nl_step2,
-    get_query_by_nl_step3,
-    get_query_by_nl_step4,
+    # get_query_by_nl_step3,
+    # get_query_by_nl_step4,
     get_device_type,
     convert_sql,
     load_sql_model,
@@ -44,11 +44,11 @@ generate_function = load_sql_model()
 async def get_device_type():
     return detect_device_type()
 
-@router.post("/query_test")
-async def query_test(request: Request):
-    body = await request.json()
-    question = body.get("question")
-    return get_query_by_nl_test(question)
+# @router.post("/query_test")
+# async def query_test(request: Request):
+#     body = await request.json()
+#     question = body.get("question")
+#     return get_query_by_nl_test(question)
 
 @router.post("/query")
 async def query(request: Request):
