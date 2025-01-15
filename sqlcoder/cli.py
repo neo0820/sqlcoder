@@ -14,7 +14,8 @@ Available commands:
     sqlcoder serve-static
 """
 
-home_dir = os.path.expanduser("~")
+#存放跟路径
+home_dir = os.path.expanduser("~/autodl-tmp")
 
 def main():
     if len(sys.argv) < 2:
@@ -35,14 +36,14 @@ def serve_webserver():
     from pyngrok import ngrok
     import uvicorn
 
-    port = 1235
+    port = 6006
     
     # 创建 ngrok 隧道
     ngrok.set_auth_token("2ojSNGWUsSo7RKxo2Q5l6e1WVIX_4gCBB7sgrQBjpKVmDZp9t")  # 在这里替换为您的 ngrok 身份令牌
     public_url = ngrok.connect(port)
     print(f"Ngrok Tunnel URL: {public_url}")
 
-    uvicorn.run(app, host="127.0.0.1", port=1235)
+    uvicorn.run(app, host="127.0.0.1", port=port)
 
 
 def serve_static():
@@ -81,12 +82,13 @@ async def start_serve_webserver():
 
 
 async def launch():
-    home_dir = os.path.expanduser("~")
+    # home_dir = os.path.expanduser("~")
     print(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~home_dir~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: {home_dir}")
     defog_path = os.path.join(home_dir, ".defog")
     print(f"~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~defog_path~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~: {defog_path}")
 
-    if not os.popen("lspci | grep -i nvidia").read():
+    if os.popen("lspci | grep -i nvidia").read():
+    # if not os.popen("lspci | grep -i nvidia").read():
         # not a GPU machine
         filepath = os.path.join(home_dir, ".defog", "llama-3-sqlcoder-8b.Q8_0.gguf")
         print("====执行路径====")
@@ -97,12 +99,13 @@ async def launch():
             )
             hf_hub_download(repo_id="QuantFactory/llama-3-sqlcoder-8b-GGUF", filename="llama-3-sqlcoder-8b.Q8_0.gguf", local_dir=defog_path)
     else:
+        pass
         # check if the huggingface model is already downloaded from hub. If not, download it
-        from huggingface_hub import snapshot_download
-        print(
-            "Downloading the llama-3-sqlcoder-8b model. This is a ~14GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
-        )
-        _ = snapshot_download("defog/llama-3-sqlcoder-8b")
+        # from huggingface_hub import snapshot_download
+        # print(
+        #     "Downloading the llama-3-sqlcoder-8b model. This is a ~14GB file and may take a long time to download. But once it's downloaded, it will be saved on your machine and you won't have to download it again."
+        # )
+        # _ = snapshot_download("defog/llama-3-sqlcoder-8b")
     
     # print("Starting SQLCoder server...")
     # static_process = subprocess.Popen(["sqlcoder", "serve-static"])

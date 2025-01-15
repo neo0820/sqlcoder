@@ -29,7 +29,10 @@ from sqlcoder.metadata_utils import (
     get_table_to_ddl,
 )
 
-home_dir = os.path.expanduser("~")
+from sqlcoder.cli import (
+    home_dir
+)
+# home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
 
 device_type = detect_device_type()
@@ -43,27 +46,29 @@ def get_device_type():
 def load_sql_model():
     # if device_type == "gpu":
     if device_type == "cpu":
-        import torch
-        from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-
-        model = AutoModelForCausalLM.from_pretrained(
-            "defog/llama-3-sqlcoder-8b",
-            device_map="auto",
-            torch_dtype=torch.float16
-        )
-        tokenizer = AutoTokenizer.from_pretrained("defog/llama-3-sqlcoder-8b")
-        pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
-        return lambda prompt: pipe(
-            prompt,
-            max_new_tokens=512,
-            do_sample=False,
-            num_beams=3,
-            num_return_sequences=1,
-            return_full_text=False,
-            eos_token_id=tokenizer.eos_token_id,
-            pad_token_id=tokenizer.eos_token_id,
-        )[0]["generated_text"].split(";")[0].split("```")[0].strip() + ";"
+        print("Loading cpu...")
+        # import torch
+        # from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+        #
+        # model = AutoModelForCausalLM.from_pretrained(
+        #     "defog/llama-3-sqlcoder-8b",
+        #     device_map="auto",
+        #     torch_dtype=torch.float16
+        # )
+        # tokenizer = AutoTokenizer.from_pretrained("defog/llama-3-sqlcoder-8b")
+        # pipe = pipeline(task="text-generation", model=model, tokenizer=tokenizer)
+        # return lambda prompt: pipe(
+        #     prompt,
+        #     max_new_tokens=512,
+        #     do_sample=False,
+        #     num_beams=3,
+        #     num_return_sequences=1,
+        #     return_full_text=False,
+        #     eos_token_id=tokenizer.eos_token_id,
+        #     pad_token_id=tokenizer.eos_token_id,
+        # )[0]["generated_text"].split(";")[0].split("```")[0].strip() + ";"
     else:
+        print("Loading gpu...")
         from llama_cpp import Llama
 
         filepath = os.path.join(defog_path, "llama-3-sqlcoder-8b.Q8_0.gguf")

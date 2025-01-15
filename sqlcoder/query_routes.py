@@ -35,7 +35,10 @@ from sqlcoder.query_utils import (
 
 router = APIRouter()
 
-home_dir = os.path.expanduser("~")
+from sqlcoder.cli import (
+    home_dir
+)
+# home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
 
 generate_function = load_sql_model()
@@ -79,17 +82,17 @@ import asyncio
 @router.post("/query_step2")
 async def query_step2(request: Request):
     params = await request.json()
-    return await get_query_by_nl_step2(params)
+    return get_query_by_nl_step2(params)
 
-@router.post("/query_step3")
-async def query_step3(request: Request):
-    params = await request.json()
-    return get_query_by_nl_step3(params)
-
-@router.post("/query_step4")
-async def query_step4(request: Request):
-    params = await request.json()
-    return get_query_by_nl_step4(params)
+# @router.post("/query_step3")
+# async def query_step3(request: Request):
+#     params = await request.json()
+#     return get_query_by_nl_step3(params)
+#
+# @router.post("/query_step4")
+# async def query_step4(request: Request):
+#     params = await request.json()
+#     return get_query_by_nl_step4(params)
 
 @router.post("/query_step5")
 async def query_step5(request: Request):

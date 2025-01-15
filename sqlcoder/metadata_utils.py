@@ -6,7 +6,10 @@ from sqlcoder.kpaas_generate_schema  import KpaasGenerateSchema
 
 
 
-home_dir = os.path.expanduser("~")
+from sqlcoder.cli import (
+    home_dir
+)
+# home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
 
 

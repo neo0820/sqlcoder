@@ -24,7 +24,10 @@ from sqlcoder.metadata_utils import (
 
 DEFOG_API_KEY = "NULL_VALUE" # placeholder, doesn't matter for any of the function here
 
-home_dir = os.path.expanduser("~")
+from sqlcoder.cli import (
+    home_dir
+)
+# home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
 
 router = APIRouter()

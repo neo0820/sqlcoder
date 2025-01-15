@@ -22,7 +22,10 @@ from sqlcoder.metadata_utils import (
 #向量索引路径
 index_path = "./index" 
 
-home_dir = os.path.expanduser("~")
+from sqlcoder.cli import (
+    home_dir
+)
+# home_dir = os.path.expanduser("~")
 defog_path = os.path.join(home_dir, ".defog")
 
 
