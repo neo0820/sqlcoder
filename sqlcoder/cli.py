@@ -15,7 +15,7 @@ Available commands:
 """
 
 #存放跟路径
-home_dir = os.path.expanduser("~/autodl-tmp")
+home_dir = os.path.expanduser("/data")
 
 def main():
     if len(sys.argv) < 2:
@@ -43,7 +43,7 @@ def serve_webserver():
     public_url = ngrok.connect(port)
     print(f"Ngrok Tunnel URL: {public_url}")
 
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 def serve_static():
